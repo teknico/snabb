@@ -54,6 +54,10 @@ TESTSCRIPTS = $(shell find . -name "selftest.sh" -executable | xargs)
 
 PATH := ../deps/luajit/usr/local/bin:$(PATH)
 
+snabb-lwaftr: snabb
+	$(E) "LINK      $@"
+	@ln -fs snabb $@
+
 snabb: $(LUAOBJ) $(PFLUAOBJ) $(HOBJ) $(COBJ) $(ARCHOBJ) $(ASMOBJ) $(INCOBJ) $(LUAJIT_A)
 	$(E) "SUBMODULES"
 	@if test ! -f ../deps/luajit.vsn			|| \
@@ -226,7 +230,7 @@ doc/snabbswitch.epub: doc/snabbswitch.md
 	$(E) "PANDOC    $@"
 	$(Q) (cd doc; pandoc --self-contained --css="style.css" -S -s --toc --chapters -o snabbswitch.epub snabbswitch.md)
 
-CLEAN = snabb snabbswitch obj bin doc/snabbswitch.* doc/.images/* testlog deps/*.vsn programs.inc
+CLEAN = snabb snabbswitch snabb-* obj bin doc/snabbswitch.* doc/.images/* testlog deps/*.vsn programs.inc
 
 clean:
 	$(E) "RM        $(CLEAN)"

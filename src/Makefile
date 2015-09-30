@@ -65,7 +65,8 @@ snabb: $(LUAOBJ) $(PFLUAOBJ) $(HOBJ) $(COBJ) $(ARCHOBJ) $(ASMOBJ) $(INCOBJ) $(LU
 	    test ! -f ../deps/pflua.vsn				|| \
 	    grep -vqF $(LJSYSCALL_VSN) ../deps/ljsyscall.vsn	|| \
 	    grep -vqF $(LUAJIT_VSN)    ../deps/luajit.vsn	|| \
-	    grep -vqF $(PFLUA_VSN)     ../deps/pflua.vsn; then \
+	    grep -vqF $(PFLUA_VSN)     ../deps/pflua.vsn        && \
+	    test -d ../.git; then\
 	    echo "Error: Submodule version mismatch"			>&2; \
 	    echo "luajit:"						>&2; \
 	    echo "  require: $(LUAJIT_VSN)"				>&2; \

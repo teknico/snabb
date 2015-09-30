@@ -26,7 +26,7 @@ $(LUAJIT):
 	 $(MAKE) PREFIX=`pwd`/usr/local \
 	         CFLAGS="$(LUAJIT_CFLAGS)" && \
 	 $(MAKE) DESTDIR=`pwd` install && \
-         git describe > ../luajit.vsn)
+         (git describe 2>/dev/null || echo release) > ../luajit.vsn)
 	(cd deps/luajit/usr/local/bin; ln -fs luajit-2.1.0-alpha luajit)
 
 $(PFLUA): $(LUAJIT)
@@ -35,7 +35,7 @@ $(PFLUA): $(LUAJIT)
 	    git submodule update --init deps/pflua; \
 	fi
 #       pflua has no tags at time of writing, so use raw commit id
-	@(cd deps/pflua && git rev-parse HEAD > ../pflua.vsn)
+	@(cd deps/pflua && (git rev-parse HEAD 2>/dev/null || echo release) > ../pflua.vsn)
 
 $(SYSCALL): $(PFLUA)
 	@if [ ! -f deps/ljsyscall/syscall.lua ]; then \
@@ -49,11 +49,31 @@ $(SYSCALL): $(PFLUA)
 	@cp -p  deps/ljsyscall/syscall/linux/*.lua src/syscall/linux/
 	@cp -pr deps/ljsyscall/syscall/linux/x64   src/syscall/linux/
 	@cp -pr deps/ljsyscall/syscall/shared      src/syscall/
-	@(cd deps/ljsyscall; git describe > ../ljsyscall.vsn)
+	@(cd deps/ljsyscall; (git describe 2>/dev/null || echo release) > ../ljsyscall.vsn)
 
 clean:
 	(cd deps/luajit && $(MAKE) clean)
 	(cd src; $(MAKE) clean; rm -rf syscall.lua syscall)
 	(rm deps/*.vsn)
+
+PACKAGE:=snabbswitch
+DIST_BINARY:=snabb
+BUILDDIR:=$(shell pwd)
+
+dist: DISTDIR:=$(BUILDDIR)/$(PACKAGE)-$(shell git describe --tags)
+dist: all
+	mkdir "$(DISTDIR)"
+	git clone "$(BUILDDIR)" "$(DISTDIR)/$(PACKAGE)"
+	git clone "$(BUILDDIR)/deps/luajit" "$(DISTDIR)/$(PACKAGE)/deps/luajit"
+	git clone "$(BUILDDIR)/deps/ljsyscall" "$(DISTDIR)/$(PACKAGE)/deps/ljsyscall"
+	git clone "$(BUILDDIR)/deps/pflua" "$(DISTDIR)/$(PACKAGE)/deps/pflua"
+	rm -rf "$(DISTDIR)/$(PACKAGE)/.git"
+	rm -rf "$(DISTDIR)/$(PACKAGE)/deps/luajit/.git"
+	rm -rf "$(DISTDIR)/$(PACKAGE)/deps/ljsyscall/.git"
+	rm -rf "$(DISTDIR)/$(PACKAGE)/deps/pflua/.git"
+	cp "$(BUILDDIR)/src/$(DIST_BINARY)" "$(DISTDIR)/"
+	cd "$(DISTDIR)/.." && tar cJvf "`basename '$(DISTDIR)'`.tar.xz" "`basename '$(DISTDIR)'`"
+	rm -rf "$(DISTDIR)"
+	@echo Dist tarball created: "$(DISTDIR).tar.xz"
 
 .SERIAL: all

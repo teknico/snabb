@@ -170,12 +170,10 @@ lwaftr = {}
 map_ipv6_to_ipv4 = {}
 
 -- Encap path:
---   Key: IPv4 destination address (32 bits)
---   Value: psmask ->    psid = TCP/UDP_port & psmask
-map_ipv4_to_psmask = {}
 --   Key: IPv4 destination address and psid (32 + 16 = 48 bits)
 --   Value: IPv6 destination address
 map_ipv4psid_to_ipv6 = {}
+shared_psmask = 0
 
 function lwaftr:new (arg)
    local conf = arg and config.parse_app_arg(arg) or {}
@@ -225,10 +223,15 @@ function lwaftr:new (arg)
      -- mask = (0xffff >> psoffset) & (0xffff << (16 - psoffset - psidlen))
      -- value = psid << (16 - psoffset - psidlen)
      local psmask = band(rshift(0xffff, psoffset), lshift(0xffff,16 - psoffset - psid_len))
+     if shared_psmask > 0 and shared_psmask ~= psmask then
+       print("psoffset and psid_len must be the same for all entries")
+       os.exit(1)
+     else
+       shared_psmask = psmask
+     end
+
      local psid = lshift(psid,16 - psoffset - psid_len)
      local ipv4psid = lshift(ipv4,16) + psid
-
-     map_ipv4_to_psmask[ipv4] = psmask
      map_ipv4psid_to_ipv6[ipv4psid] = in_addr6
 
    end
@@ -250,7 +253,6 @@ function lwaftr:new (arg)
       map_ipv6_to_ipv4 = map_ipv6_to_ipv4,
       local_mac = local_mac,
       remote_ipv4_mac = remote_ipv4_mac,
-      map_ipv4_to_psmask,
       map_ipv4psid_to_ipv6
    }
 
@@ -292,13 +294,9 @@ function lwaftr:push()
 
        local pdstport = ffi.cast(pshort_ctype, p.data + ETHER_HEADER_SIZE + IPV4_DST_PORT_OFFSET)
        local dstport = lib.ntohs(pdstport[0])
-       local psmask = map_ipv4_to_psmask[dst_ipv4] 
        local psid = 0
-       if psmask == nil then
-         break
-       end
 
-       psid = band(dstport,psmask)
+       psid = band(dstport,shared_psmask)
        local ipv4psid = lshift(dst_ipv4,16) + psid
        dst_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
        if dst_ipv6 == nil then
@@ -373,12 +371,8 @@ function lwaftr:push()
 
          local psrcport = ffi.cast(pshort_ctype, p.data + ETHER_IPV6_HEADER_SIZE + IPV4_SRC_PORT_OFFSET)
          local srcport = lib.ntohs(psrcport[0])
-         local psmask = map_ipv4_to_psmask[src_ipv4] 
-         if psmask == nil then
-           break
-         end
 
-         local psid = band(srcport,psmask)
+         local psid = band(srcport,shared_psmask)
          local ipv4psid = lshift(src_ipv4,16) + psid
          local src_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
          if src_ipv6 == nil then

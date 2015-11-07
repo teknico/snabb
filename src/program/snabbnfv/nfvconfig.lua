@@ -5,6 +5,7 @@ local PcapFilter = require("apps.packet_filter.pcap_filter").PcapFilter
 local RateLimiter = require("apps.rate_limiter.rate_limiter").RateLimiter
 local nd_light = require("apps.ipv6.nd_light").nd_light
 local L2TPv3 = require("apps.keyed_ipv6_tunnel.tunnel").SimpleKeyedTunnel
+local lwaftr = require("apps.lwaftr.lwaftr").lwaftr
 local pci = require("lib.hardware.pci")
 local ffi = require("ffi")
 local C = ffi.C
@@ -84,6 +85,28 @@ function load (file, pciaddr, sockpath)
                     {local_mac = mac_address,
                      local_ip = t.tunnel.local_ip,
                      next_hop = t.tunnel.next_hop})
+         -- VM -> Tunnel -> ND <-> Network
+         config.link(c, VM_tx.." -> "..Tunnel..".decapsulated")
+         config.link(c, Tunnel..".encapsulated -> "..ND..".north")
+         -- Network <-> ND -> Tunnel -> VM
+         config.link(c, ND..".north -> "..Tunnel..".encapsulated")
+         config.link(c, Tunnel..".decapsulated -> "..VM_rx)
+         VM_rx, VM_tx = ND..".south", ND..".south"
+      end
+      if t.tunnel and t.tunnel.type == "lwaftr" then
+         local Tunnel = name.."_Tunnel"
+         local conf = {local_mac = mac_address,
+                       ipv6_interface = t.tunnel.ipv6_interface,
+                       ipv4_interface = t.tunnel.ipv4_interface,
+                       binding_table = t.tunnel.binding_table}
+         config.app(c, Tunnel, lwaftr, conf)
+         -- Setup IPv6 neighbor discovery/solicitation responder.
+         -- This will talk to our local gateway.
+         local ND = name.."_ND"
+         config.app(c, ND, nd_light,
+                    {local_mac = mac_address,
+                     local_ip = t.tunnel.ipv6_interface.address,
+                     next_hop = t.tunnel.ipv6_interface.next_hop})
          -- VM -> Tunnel -> ND <-> Network
          config.link(c, VM_tx.." -> "..Tunnel..".decapsulated")
          config.link(c, Tunnel..".encapsulated -> "..ND..".north")

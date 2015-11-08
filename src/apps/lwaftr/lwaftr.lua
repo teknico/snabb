@@ -30,7 +30,7 @@ module(...,package.seeall)
 -- TODO: 
 --  MTU and fragmentation handling
 --  ARP resolution for ipv4 next_hop
---  ICMP handling according to RFC
+--  ICMP handling of type other than echo request/response according to RFC5508
 --  Compare IPv6 source IP address with the lookup one, not just that it exists
 --  Performance enhancement (e.g. hash efficiency)
 --  Better syntax error handling in config file
@@ -324,7 +324,7 @@ function lwaftr:push()
          if type == ICMP_ECHO_REPLY or type == ICMP_ECHO_REQUEST then
            local pid = ffi.cast(pshort_ctype, p.data + ETHER_HEADER_SIZE + ICMPV4_ID_OFFSET)
            local id = lib.ntohs(pid[0])
-           print("icmp echo received with id=" .. id)
+--           print("icmp echo received with id=" .. id)
            -- check if the id is within the B4's assigned range
            local psid = band(id,shared_psmask)
            local ipv4psid = lshift(dst_ipv4,16) + psid

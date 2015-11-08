@@ -31,6 +31,7 @@ module(...,package.seeall)
 --  MTU and fragmentation handling
 --  ARP resolution for ipv4 next_hop
 --  ICMP handling according to RFC
+--  Compare IPv6 source IP address with the lookup one, not just that it exists
 --  Performance enhancement (e.g. hash efficiency)
 --  Better syntax error handling in config file
 --  Implement selftest() function
@@ -39,6 +40,12 @@ module(...,package.seeall)
 
 local AF_INET  = 2
 local AF_INET6 = 10
+local PROTO_ICMP = 1
+local PROTO_TCP = 6
+local PROTO_UDP = 17
+
+local ICMP_ECHO_REPLY = 0
+local ICMP_ECHO_REQUEST = 8
 
 local ffi = require("ffi")
 local C = ffi.C
@@ -100,6 +107,27 @@ struct {
 } __attribute__((packed))
 ]]
 
+local icmpv4_header_struct_ctype = ffi.typeof[[
+struct {
+  // ipv4
+  int8_t  version_hdrlen;
+  int8_t  diffserv;
+  int16_t payload_length;
+  int16_t id;
+  int16_t flag_fragmet;
+  int8_t  ttl;
+  int8_t  protocol;
+  int16_t header_checksum;
+  char    src_ip[4];
+  char    dst_ip[4];
+  int8_t  icmp_type;
+  int8_t  icmp_code;
+  int16_t icmp_cksum;
+  int16_t icd_id;
+  int16_t icd_seq;
+} __attribute__((packed))
+]]
+
 -- local ipv4_struct_ctype = ffi.typeof("uint32_t[1]")
 
 local ETHER_HEADER_SIZE = ffi.sizeof(ether_header_struct_ctype)
@@ -127,6 +155,9 @@ local DST_IPV4_OFFSET = ffi.offsetof(ipv4_header_struct_ctype, 'dst_ip')
 local IPV4_PROTOCOL_OFFSET = ffi.offsetof(ipv4_header_struct_ctype, 'protocol')
 local IPV4_SRC_PORT_OFFSET = ffi.offsetof(ipv4_header_struct_ctype, 'src_port')
 local IPV4_DST_PORT_OFFSET = ffi.offsetof(ipv4_header_struct_ctype, 'dst_port')
+
+local ICMPV4_TYPE_OFFSET = ffi.offsetof(icmpv4_header_struct_ctype, 'icmp_type')
+local ICMPV4_ID_OFFSET = ffi.offsetof(icmpv4_header_struct_ctype, 'icd_id')
 
 -- Next Header IPIP (4)
 local IPIP_NEXT_HEADER = 0x04
@@ -286,7 +317,32 @@ function lwaftr:push()
        local dst_ipv4 = pdst_ipv4[0]
        local pprotocol = ffi.cast(pchar_ctype, p.data + ETHER_HEADER_SIZE + IPV4_PROTOCOL_OFFSET)
        local protocol = pprotocol[0]
-       if protocol ~= 6 and protocol ~= 17 then
+
+       if protocol == PROTO_ICMP then
+         local ptype = ffi.cast(pchar_ctype, p.data + ETHER_HEADER_SIZE + ICMPV4_TYPE_OFFSET)
+         local type = ptype[0]
+         if type == ICMP_ECHO_REPLY or type == ICMP_ECHO_REQUEST then
+           local pid = ffi.cast(pshort_ctype, p.data + ETHER_HEADER_SIZE + ICMPV4_ID_OFFSET)
+           local id = lib.ntohs(pid[0])
+           print("icmp echo received with id=" .. id)
+           -- check if the id is within the B4's assigned range
+           local psid = band(id,shared_psmask)
+           local ipv4psid = lshift(dst_ipv4,16) + psid
+           dst_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
+           if dst_ipv6 == nil then
+--                print("id doesn't belong to the dst ipv6")
+             break;
+           else
+ --               print("ICMP packet good. Passing it thru")
+             drop = false
+             break
+           end
+         else
+           break
+         end
+       end
+
+       if protocol ~= PROTO_TCP and protocol ~= PROTO_UDP then
          break
        end
 
@@ -362,8 +418,30 @@ function lwaftr:push()
          
          local pprotocol = ffi.cast(pchar_ctype, p.data + ETHER_IPV6_HEADER_SIZE + IPV4_PROTOCOL_OFFSET)
          local protocol = pprotocol[0]
-         -- check for TCP or UDP packet. Discard anything else (TODO fix here for ICMP handling)
-         if protocol ~= 6 and protocol ~= 17 then
+
+         if protocol == PROTO_ICMP then
+           local ptype = ffi.cast(pchar_ctype, p.data + ETHER_IPV6_HEADER_SIZE + ICMPV4_TYPE_OFFSET)
+           local type = ptype[0]
+           if type == ICMP_ECHO_REPLY or type == ICMP_ECHO_REQUEST then
+             local pid = ffi.cast(pshort_ctype, p.data + ETHER_IPV6_HEADER_SIZE + ICMPV4_ID_OFFSET)
+             local id = lib.ntohs(pid[0])
+             -- check if the id is within the B4's assigned range
+             local psid = band(id,shared_psmask)
+             local ipv4psid = lshift(src_ipv4,16) + psid
+             local src_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
+             if src_ipv6 == nil then
+               --             print("id doesn't belong to the src ipv6")
+               break;
+             else
+               --             print("ICMP packet good. Passing it thru")
+               drop = false
+             end
+           else
+             break
+           end
+         end
+
+         if protocol ~= PROTO_TCP and protocol ~= PROTO_UDP then
            break
          end
 
@@ -384,8 +462,9 @@ function lwaftr:push()
       until true
 
       if drop then
-         -- don't drop. Pass it on to the virtual machine unchanged
-         link.transmit(l_out, p)
+         packet.free(p)
+         -- maybe we don't drop and pass it on to the virtual machine unchanged?
+--         link.transmit(l_out, p)
       else
          packet.shiftleft(p, ETHER_IPV6_HEADER_SIZE - 14)  -- leave Ethernet header
 

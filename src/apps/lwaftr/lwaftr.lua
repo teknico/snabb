@@ -156,6 +156,7 @@ local IPV4_PROTOCOL_OFFSET = ffi.offsetof(ipv4_header_struct_ctype, 'protocol')
 local IPV4_SRC_PORT_OFFSET = ffi.offsetof(ipv4_header_struct_ctype, 'src_port')
 local IPV4_DST_PORT_OFFSET = ffi.offsetof(ipv4_header_struct_ctype, 'dst_port')
 
+local ICMPV4_HEADER_SIZE = ffi.sizeof(icmpv4_header_struct_ctype)
 local ICMPV4_TYPE_OFFSET = ffi.offsetof(icmpv4_header_struct_ctype, 'icmp_type')
 local ICMPV4_ID_OFFSET = ffi.offsetof(icmpv4_header_struct_ctype, 'icd_id')
 
@@ -338,7 +339,32 @@ function lwaftr:push()
              break
            end
          else
-           break
+           -- for other ICMP types, check for TCP or UDP payload 
+           -- and lookup the packets SRC UDP/TCP port number if it matches a binding
+           local psrc_ipv4 = ffi.cast(pipv4_addr_ctype, p.data + ETHER_HEADER_SIZE + ICMPV4_HEADER_SIZE + SRC_IPV4_OFFSET)
+           local src_ipv4 = psrc_ipv4[0]
+           local pprotocol = ffi.cast(pchar_ctype, p.data + ETHER_HEADER_SIZE + ICMPV4_HEADER_SIZE + IPV4_PROTOCOL_OFFSET)
+           local protocol = pprotocol[0]
+           local pid
+           if protocol == PROTO_ICMP then
+             pid = ffi.cast(pshort_ctype, p.data + ETHER_HEADER_SIZE + ICMPV4_HEADER_SIZE + ICMPV4_ID_OFFSET)
+           end
+           if protocol == PROTO_TCP or protocol == PROTO_UDP then
+             pid = ffi.cast(pshort_ctype, p.data + ETHER_HEADER_SIZE + ICMPV4_HEADER_SIZE + IPV4_SRC_PORT_OFFSET)
+           end
+           local id = lib.ntohs(pid[0])
+
+           -- TODO: any other protocols to accept besides ICMP, UDP and TCP?
+           if protocol == PROTO_TCP or protocol == PROTO_UDP or protocol == PROTO_ICMP then
+             local psid = band(id,shared_psmask)
+             local ipv4psid = lshift(src_ipv4,16) + psid
+             dst_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
+             if dst_ipv6 ~= nil then
+               drop = false
+               break
+             end
+             break
+           end
          end
        end
 

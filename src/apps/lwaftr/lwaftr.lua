@@ -35,6 +35,7 @@ module(...,package.seeall)
 --  Performance enhancement (e.g. hash efficiency)
 --  Better syntax error handling in config file
 --  Implement selftest() function
+--  IPv4/IPv6 Traffic class copying according to RFC 6333 Section 7.1
 
 -- initial code copied from keyed_ipv6_tunnel/tunnel.lua
 
@@ -264,6 +265,7 @@ function lwaftr:new (arg)
 
      local psid = lshift(psid,16 - psoffset - psid_len)
      local ipv4psid = lshift(ipv4,16) + psid
+--     print("psid=" .. psid .. " ipv4psid=" .. ipv4psid)
      map_ipv4psid_to_ipv6[ipv4psid] = in_addr6
 
    end

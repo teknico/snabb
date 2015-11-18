@@ -54,11 +54,10 @@ function snabb_run_and_cmp {
 #    ${TEST_DATA}/tcp-frominet-trafficclass.pcap ${EMPTY} \
 #    ${EMPTY} ${TEST_DATA}/tcp-afteraftr-ipv6-trafficclass.pcap
 
-# Fail
-# echo "Testing: from-internet IPv4 packet found in the binding table, original TTL=1."
-# snabb_run_and_cmp ${TEST_CONF}/icmp_on_fail_vlan.conf \
-#    ${TEST_DATA}/tcp-frominet-bound-ttl1.pcap ${EMPTY}\
-#    ${TEST_DATA}/icmpv4-time-expired.pcap ${EMPTY}
+echo "Testing: from-internet IPv4 packet found in the binding table, original TTL=1."
+snabb_run_and_cmp ${TEST_CONF}/icmp_on_fail_vlan.conf \
+   ${TEST_DATA}/tcp-frominet-bound-ttl1.pcap ${EMPTY}\
+   ${TEST_DATA}/icmpv4-time-expired.pcap ${EMPTY}
 
 # Fail
 # echo "Testing: from-B4 IPv4 fragmentation (2)"
@@ -101,11 +100,10 @@ snabb_run_and_cmp ${TEST_CONF}/no_icmp_vlan.conf \
    ${TEST_DATA}/tcp-frominet-unbound.pcap ${EMPTY} \
    ${EMPTY} ${EMPTY}
 
-# Fail
-# echo "Testing: from-internet IPv4 packet NOT found in the binding table (ICMP-on-fail)."
-# snabb_run_and_cmp ${TEST_CONF}/icmp_on_fail_vlan.conf \
-#    ${TEST_DATA}/tcp-frominet-unbound.pcap ${EMPTY} \
-#    ${TEST_DATA}/icmpv4-dst-host-unreachable.pcap ${EMPTY}
+echo "Testing: from-internet IPv4 packet NOT found in the binding table (ICMP-on-fail)."
+snabb_run_and_cmp ${TEST_CONF}/icmp_on_fail_vlan.conf \
+   ${TEST_DATA}/tcp-frominet-unbound.pcap ${EMPTY} \
+   ${TEST_DATA}/icmpv4-dst-host-unreachable.pcap ${EMPTY}
 
 echo "Testing: from-to-b4 IPv6 packet NOT found in the binding table, no ICMP."
 snabb_run_and_cmp ${TEST_CONF}/no_icmp_vlan.conf \
@@ -123,11 +121,10 @@ snabb_run_and_cmp ${TEST_CONF}/no_icmp_vlan.conf \
    ${EMPTY} ${TEST_DATA}/tcp-fromb4-ipv6-unbound.pcap \
    ${EMPTY} ${EMPTY}
 
-# Fail
-# echo "Testing: from-b4 to-internet IPv6 packet NOT found in the binding table (ICMP-on-fail)"
-# snabb_run_and_cmp ${TEST_CONF}/icmp_on_fail_vlan.conf \
-#    ${EMPTY} ${TEST_DATA}/tcp-fromb4-ipv6-unbound.pcap \
-#    ${EMPTY} ${TEST_DATA}/icmpv6-nogress.pcap
+echo "Testing: from-b4 to-internet IPv6 packet NOT found in the binding table (ICMP-on-fail)"
+snabb_run_and_cmp ${TEST_CONF}/icmp_on_fail_vlan.conf \
+   ${EMPTY} ${TEST_DATA}/tcp-fromb4-ipv6-unbound.pcap \
+   ${EMPTY} ${TEST_DATA}/icmpv6-nogress.pcap
 
 # Fail
 # echo "Testing: from-to-b4 IPv6 packet, no hairpinning"
@@ -201,40 +198,34 @@ snabb_run_and_cmp ${TEST_CONF}/no_icmp_vlan.conf \
 #    ${TEST_DATA}/incoming-icmpv4-34toobig.pcap ${EMPTY} \
 #    ${EMPTY} ${TEST_DATA}/ipv6-tunneled-incoming-icmpv4-34toobig.pcap
 
-# Fail
-# echo "Testing: incoming ICMPv6 1,3 destination/address unreachable, OPE from internet"
-# snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
-#    ${EMPTY} ${TEST_DATA}/incoming-icmpv6-13dstaddressunreach-inet-OPE.pcap \
-#    ${TEST_DATA}/response-ipv4-icmp31-inet.pcap ${EMPTY}
+echo "Testing: incoming ICMPv6 1,3 destination/address unreachable, OPE from internet"
+snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
+   ${EMPTY} ${TEST_DATA}/incoming-icmpv6-13dstaddressunreach-inet-OPE.pcap \
+   ${TEST_DATA}/response-ipv4-icmp31-inet.pcap ${EMPTY}
 
-# Fail
-# echo "Testing: incoming ICMPv6 2,0 'too big' notification, OPE from internet"
-# snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
-#    ${EMPTY} ${TEST_DATA}/incoming-icmpv6-20pkttoobig-inet-OPE.pcap \
-#    ${TEST_DATA}/response-ipv4-icmp34-inet.pcap ${EMPTY}
+echo "Testing: incoming ICMPv6 2,0 'too big' notification, OPE from internet"
+snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
+   ${EMPTY} ${TEST_DATA}/incoming-icmpv6-20pkttoobig-inet-OPE.pcap \
+   ${TEST_DATA}/response-ipv4-icmp34-inet.pcap ${EMPTY}
 
-# Fail
-# echo "Testing: incoming ICMPv6 3,0 hop limit exceeded, OPE from internet"
-# snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
-#    ${EMPTY} ${TEST_DATA}/incoming-icmpv6-30hoplevelexceeded-inet-OPE.pcap \
-#    ${TEST_DATA}/response-ipv4-icmp31-inet.pcap ${EMPTY}
+echo "Testing: incoming ICMPv6 3,0 hop limit exceeded, OPE from internet"
+snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
+   ${EMPTY} ${TEST_DATA}/incoming-icmpv6-30hoplevelexceeded-inet-OPE.pcap \
+   ${TEST_DATA}/response-ipv4-icmp31-inet.pcap ${EMPTY}
 
-# Fail
-# echo "Testing: incoming ICMPv6 3,1 frag reasembly time exceeded, OPE from internet"
-# snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
-#    ${EMPTY} ${TEST_DATA}/incoming-icmpv6-31fragreassemblytimeexceeded-inet-OPE.pcap \
-#    ${EMPTY} ${EMPTY}
+echo "Testing: incoming ICMPv6 3,1 frag reasembly time exceeded, OPE from internet"
+snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
+   ${EMPTY} ${TEST_DATA}/incoming-icmpv6-31fragreassemblytimeexceeded-inet-OPE.pcap \
+   ${EMPTY} ${EMPTY}
 
-# Fail
-# echo "Testing: incoming ICMPv6 4,3 parameter problem, OPE from internet"
-# snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
-#    ${EMPTY} ${TEST_DATA}/incoming-icmpv6-43paramprob-inet-OPE.pcap \
-#    ${TEST_DATA}/response-ipv4-icmp31-inet.pcap ${EMPTY}
+echo "Testing: incoming ICMPv6 4,3 parameter problem, OPE from internet"
+snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
+   ${EMPTY} ${TEST_DATA}/incoming-icmpv6-43paramprob-inet-OPE.pcap \
+   ${TEST_DATA}/response-ipv4-icmp31-inet.pcap ${EMPTY}
 
-# Fail
-# echo "Testing: incoming ICMPv6 3,0 hop limit exceeded, OPE hairpinned"
-# snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
-#    ${EMPTY} ${TEST_DATA}/incoming-icmpv6-30hoplevelexceeded-hairpinned-OPE.pcap \
-#    ${EMPTY} ${TEST_DATA}/response-ipv6-tunneled-icmpv4_31-tob4.pcap
+echo "Testing: incoming ICMPv6 3,0 hop limit exceeded, OPE hairpinned"
+snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
+   ${EMPTY} ${TEST_DATA}/incoming-icmpv6-30hoplevelexceeded-hairpinned-OPE.pcap \
+   ${EMPTY} ${TEST_DATA}/response-ipv6-tunneled-icmpv4_31-tob4.pcap
 
 echo "All end-to-end lwAFTR tests passed."

@@ -606,7 +606,7 @@ local function from_b4(lwstate, pkt)
          end
          -- Fragment if necessary
          if pkt.length > lwstate.ipv4_mtu then
-            local fragstatus, frags = fragmentv4.fragment_ipv4(pkt, lwstate.ipv4_mtu)
+            local fragstatus, frags = fragmentv4.fragment_ipv4(pkt, constants.ethernet_header_size, lwstate.ipv4_mtu)
             if fragstatus == fragmentv4.FRAGMENT_OK then
                for i=1,#frags do
                   guarded_transmit(frags[i], lwstate.o4)

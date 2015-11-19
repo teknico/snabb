@@ -3,7 +3,6 @@ if type((...)) == "string" then module(..., package.seeall) end
 
 local constants = require("apps.lwaftr.constants")
 local fragmentv4 = require("apps.lwaftr.fragmentv4")
-local constants = require("apps.lwaftr.constants")
 local eth_proto = require("lib.protocol.ethernet")
 local ip4_proto = require("lib.protocol.ipv4")
 local lwutil = require("apps.lwaftr.lwutil")

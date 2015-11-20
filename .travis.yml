@@ -9,3 +9,4 @@ script:
     - make
     - sudo make -C src test
     - cd tests/apps/lwaftr/end-to-end && sudo ./end-to-end.sh
+    - sudo ./end-to-end-vlan.sh

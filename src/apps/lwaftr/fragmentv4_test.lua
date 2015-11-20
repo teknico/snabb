@@ -5,7 +5,7 @@ local constants = require("apps.lwaftr.constants")
 local fragmentv4 = require("apps.lwaftr.fragmentv4")
 local eth_proto = require("lib.protocol.ethernet")
 local ip4_proto = require("lib.protocol.ipv4")
-local lwutil = require("apps.lwaftr.lwutil")
+local get_ihl_from_offset = require("apps.lwaftr.lwutil").get_ihl_from_offset
 local packet = require("core.packet")
 local band = require("bit").band
 local ffi = require("ffi")
@@ -264,6 +264,7 @@ function test_reassemble_pattern_fragments()
    local data = ffi.new("uint8_t[?]", size)
 
    for i = 1, #result do
+      local ih = get_ihl_from_offset(result[i], constants.ethernet_header_size)
       ffi.copy(data + pkt_frag_offset(result[i]),
                result[i].data + eth_proto:sizeof() + get_ihl_from_offset(result[i], eth_size),
                pkt_payload_size(result[i]))

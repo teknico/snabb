@@ -7,7 +7,7 @@ local ipsum = require("lib.checksum").ipsum
 local bit = require("bit")
 local ffi = require("ffi")
 
-local rd16, wr16, get_ihl_from_offset = lwutil.rd16, lwutil.wr16, lwutil.get_ihl_from_offset
+local rd16, wr16, wr32, get_ihl_from_offset = lwutil.rd16, lwutil.wr16, lwutil.wr32, lwutil.get_ihl_from_offset
 local cast = ffi.cast
 local C = ffi.C
 local band, bor = bit.band, bit.bor
@@ -128,6 +128,15 @@ function fragment_ipv4(ipv4_pkt, l2_size, mtu)
         C.htons(ipsum(ipv4_pkt.data + ver_and_ihl_offset, ihl, 0)))
 
    return FRAGMENT_OK, pkts
+end
+
+
+function is_ipv4_fragment(pkt, l2_size)
+   -- Either the packet has the "more fragments" flag set,
+   -- or the fragment offset is non-zero, or both.
+   local flags_and_frag_offset = C.ntohs(rd16(pkt.data + l2_size + constants.o_ipv4_flags))
+   return band(flags_and_frag_offset, flag_more_fragments_mask) ~= 0 or
+      band(flags_and_frag_offset, frag_offset_field_mask) ~= 0
 end
 
 

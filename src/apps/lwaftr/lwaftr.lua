@@ -512,23 +512,28 @@ local function get_ipv6_dst_ip(lwstate, pkt)
    return fstring(pkt.data + ipv6_dst, 16)
 end
 
--- TODO: rewrite this to either also have the source and dest IPs in the table,
--- or rewrite the fragment reassembler to check rather than assuming
--- all the fragments it is passed are the same in this regard
-local function cache_ipv6_fragment(lwstate, frag)
-   local cache = lwstate.fragment6_cache
+local function key_ipv6_frag(lwstate, frag)
    local frag_id = fragmentv6.get_ipv6_frag_id(frag, lwstate.l2_size)
    local src_ip = get_ipv6_src_ip(lwstate, frag)
    local dst_ip = get_ipv6_dst_ip(lwstate, frag)
    local src_dst = src_ip..dst_ip
-   cache[frag_id] = cache[frag_id] or {}
-   cache[frag_id][src_dst] = cache[frag_id][src_dst] or {}
-   table.insert(cache[frag_id][src_dst], frag)
-   return cache[frag_id][src_dst], frag_id
+   return frag_id .. '|' .. src_dst
 end
 
-local function clean_fragment_cache(lwstate, frag_id)
-   lwstate.fragment6_cache[frag_id] = nil
+local function cache_ipv6_fragment(lwstate, frag)
+   local cache = lwstate.fragment6_cache
+   local key = key_ipv6_frag(lwstate, frag)
+   cache[key] = cache[key] or {}
+   table.insert(cache[key], frag)
+   return cache[key]
+end
+
+local function clean_ipv6_fragment_cache(lwstate, frags)
+   local key = key_ipv6_frag(lwstate, frags[1])
+   lwstate.fragment6_cache[key] = nil
+   for i=1,#frags do
+      packet.free(frags[i])
+   end
 end
 
 local function from_b4(lwstate, pkt)
@@ -540,12 +545,13 @@ local function from_b4(lwstate, pkt)
            return -- Nothing useful to be done yet
       elseif frag_status == fragmentv6.REASSEMBLY_INVALID then
          if maybe_pkt then -- This is an ICMP packet
-            clean_fragment_cache(lwstate, frag_id)
+            clean_ipv6_fragment_cache(lwstate, frags)
             guarded_transmit(pkt, lwstate.o6)
             return
          end
       else
          -- The spec mandates that reassembly must occur before decapsulation
+         clean_ipv6_fragment_cache(lwstate, frags)
          if debug then lwdebug.print_pkt(maybe_pkt) end
          pkt = maybe_pkt -- do the rest of the processing on the reassembled packet
       end

@@ -7,7 +7,7 @@ local ipsum = require("lib.checksum").ipsum
 local bit = require("bit")
 local ffi = require("ffi")
 
-local rd16, wr16, get_ihl_from_offset = lwutil.rd16, lwutil.wr16, lwutil.get_ihl_from_offset
+local rd16, wr16, wr32, get_ihl_from_offset = lwutil.rd16, lwutil.wr16, lwutil.wr32, lwutil.get_ihl_from_offset
 local cast = ffi.cast
 local C = ffi.C
 local band, bor = bit.band, bit.bor

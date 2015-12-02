@@ -262,14 +262,11 @@ function lwaftr:new (arg)
      print(string.format("%d: IPv4=0x%X psid=%d ipv4psid=%X", count, ipv4, psid, ipv4psid))
 
      -- check if there is already a mapping, which would be a mistake
-     if nil ~= map_ipv4psid_to_ipv6[ipv4psid] then
+     if map_ipv4psid_to_ipv6[ipv4psid] then
        print(string.format("ERROR: Duplicate mapping for IPv4=0x%X psid=%d ipv4psid=%X", ipv4, psid, ipv4psid))
        os.exit(1)
      end
      map_ipv4psid_to_ipv6[ipv4psid] = in_addr6
-
-     -- as decap key we use the same table as for encap, but verify the ipv6
-     -- address. 
 
    end
 
@@ -336,7 +333,7 @@ function lwaftr:push()
            local ipv4psid = tonumber(bit.bor(bit.lshift(ipv4psid,16), psid))
            dst_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
            if dst_ipv6 == nil then
-             print("Encap ICMP id doesn't belong to the dst ipv6")
+             -- print("Encap ICMP id doesn't belong to the dst ipv6")
              break;
            else
              -- print("Encap: ICMP packet good. Passing it thru")
@@ -369,7 +366,7 @@ function lwaftr:push()
                drop = false
                break
              else
-               print(string.format("Encap: dropping ICMP IPv4 packet. No binding found for ipv4psid 0x%x", ipv4psid))
+               -- print(string.format("Encap: dropping ICMP IPv4 packet. No binding found for ipv4psid 0x%x", ipv4psid))
              end
              break
            end
@@ -390,7 +387,7 @@ function lwaftr:push()
        local ipv4psid = tonumber(bit.bor(bit.lshift(ipv4psid,16), psid))
        dst_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
        if dst_ipv6 == nil then
-         print(string.format("Encap: dropping IPv4 TCP/UDP packet. No binding found for ipv4psid 0x%x", ipv4psid))
+         -- print(string.format("Encap: dropping IPv4 TCP/UDP packet. No binding found for ipv4psid 0x%x", ipv4psid))
          break
        end
        -- print("Encap: matching IPv6 address found")
@@ -400,7 +397,6 @@ function lwaftr:push()
 
      if drop then
        -- discard packet
-       print("encap dropping packet")
        packet.free(p)
      else
        -- remove ethernet header
@@ -462,12 +458,10 @@ function lwaftr:push()
              local pipv6 = ffi.cast(pipv6_address_ctype, ipv6)
              if pipv6[0] ~= src_ipv6[0] or
                pipv6[1] ~= src_ipv6[1] then
---               print("id doesn't belong to the src ipv6")
                  print(string.format("Encap: dropping ICMP IPv4 packet. for ipv4psid 0x%x", ipv4psid))
                break;
              end
            end
---           print("Encap: ICMP packet good. Passing it thru")
            drop = false
          else
            break
@@ -477,8 +471,6 @@ function lwaftr:push()
        if protocol ~= PROTO_TCP and protocol ~= PROTO_UDP then
          break
        end
-
---      print("its a TCP or UDP packet. Verify now if the binding matches the src IPv6")
 
        local psrcport = ffi.cast(pshort_ctype, p.data + ETHER_IPV6_HEADER_SIZE + IPV4_SRC_PORT_OFFSET)
        local srcport = lib.ntohs(psrcport[0])
@@ -492,7 +484,7 @@ function lwaftr:push()
          local pipv6 = ffi.cast(pipv6_address_ctype, ipv6)
          if pipv6[0] ~= src_ipv6[0] or
            pipv6[1] ~= src_ipv6[1] then
-             print(string.format("Decap: dropping TCP/UDP IPv4 packet. No matching source IPv6 address found ipv4psid 0x%x", ipv4psid))
+             -- print(string.format("Decap: dropping TCP/UDP IPv4 packet. No matching source IPv6 address found ipv4psid 0x%x", ipv4psid))
            break;
          end
        end
@@ -503,7 +495,6 @@ function lwaftr:push()
      until true
 
      if drop then
-       print("encap dropping packet")
        packet.free(p)
        -- maybe we don't drop and pass it on to the virtual machine unchanged?
        --         link.transmit(l_out, p)

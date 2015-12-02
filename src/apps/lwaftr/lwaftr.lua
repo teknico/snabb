@@ -50,12 +50,10 @@ local ICMP_ECHO_REQUEST = 8
 
 local ffi = require("ffi")
 local C = ffi.C
-local bit = require("bit")
 
 local helpers = require "syscall.helpers"
 
 local bit = require("bit")
-local band, rshift, lshift = bit.band, bit.rshift, bit.lshift
 
 local app = require("core.app")
 local link = require("core.link")
@@ -195,16 +193,11 @@ end
 
 lwaftr = {}
 
--- Decap path:
---   Key: IPv6 source address
---   Value: IPv4 address that subscriber maps to
---   (reverse check to validate port is required. Could be done by using 
---    encap path array)
-map_ipv6_to_ipv4 = {}
 
--- Encap path:
+-- Decap & Encap path:
 --   Key: IPv4 destination address and psid (32 + 16 = 48 bits)
 --   Value: IPv6 destination address
+--
 map_ipv4psid_to_ipv6 = {}
 shared_psmask = 0
 
@@ -249,24 +242,34 @@ function lwaftr:new (arg)
      local result = C.inet_pton(AF_INET6, binding_ipv6_addr, in_addr6)
      assert(result == 1,"malformed IPv6 address: " .. binding_ipv6_addr)
 
-     -- key is just the remote IPv6 address. Unique enough hopefully
-     local ipv6key = ffi.string(in_addr6, 16)
-     map_ipv6_to_ipv4[ipv6key] = ipv4;
-
      -- mask = (0xffff >> psoffset) & (0xffff << (16 - psoffset - psidlen))
      -- value = psid << (16 - psoffset - psidlen)
-     local psmask = band(rshift(0xffff, psoffset), lshift(0xffff,16 - psoffset - psid_len))
-     if shared_psmask > 0 and shared_psmask ~= psmask then
-       print("psoffset and psid_len must be the same for all entries")
-       os.exit(1)
-     else
+     local psmask = bit.band(bit.rshift(0xffff, psoffset), bit.lshift(0xffff,16 - psoffset - psid_len))
+    
+     if shared_psmask == 0 then
        shared_psmask = psmask
+       print(string.format("offset=%d len=%d -> psmask=0x%x", psoffset, psid_len, shared_psmask))
      end
 
-     local psid = lshift(psid,16 - psoffset - psid_len)
-     local ipv4psid = lshift(ipv4,16) + psid
---     print("psid=" .. psid .. " ipv4psid=" .. ipv4psid)
+     if shared_psmask ~= psmask then
+       print("psoffset and psid_len must be the same for all entries")
+       os.exit(1)
+     end
+
+     local psidshifted = bit.lshift(psid,16 - psoffset - psid_len)
+     local ipv4psid = bit.band(0xffffffffffffLL, ipv4)
+     local ipv4psid = tonumber(bit.bor(bit.lshift(ipv4psid,16), psidshifted))
+     print(string.format("%d: IPv4=0x%X psid=%d ipv4psid=%X", count, ipv4, psid, ipv4psid))
+
+     -- check if there is already a mapping, which would be a mistake
+     if nil ~= map_ipv4psid_to_ipv6[ipv4psid] then
+       print(string.format("ERROR: Duplicate mapping for IPv4=0x%X psid=%d ipv4psid=%X", ipv4, psid, ipv4psid))
+       os.exit(1)
+     end
      map_ipv4psid_to_ipv6[ipv4psid] = in_addr6
+
+     -- as decap key we use the same table as for encap, but verify the ipv6
+     -- address. 
 
    end
 
@@ -284,7 +287,6 @@ function lwaftr:new (arg)
    local o =
    {
       header = header,
-      map_ipv6_to_ipv4 = map_ipv6_to_ipv4,
       local_mac = local_mac,
       remote_ipv4_mac = remote_ipv4_mac,
       map_ipv4psid_to_ipv6
@@ -314,7 +316,7 @@ function lwaftr:push()
          break
        end
 
---      print ("got IPv4 packet")
+       -- print ("Encap: got IPv4 packet")
 
        local pdst_ipv4 = ffi.cast(pipv4_addr_ctype, p.data + ETHER_HEADER_SIZE + DST_IPV4_OFFSET)
        local dst_ipv4 = pdst_ipv4[0]
@@ -327,16 +329,17 @@ function lwaftr:push()
          if type == ICMP_ECHO_REPLY or type == ICMP_ECHO_REQUEST then
            local pid = ffi.cast(pshort_ctype, p.data + ETHER_HEADER_SIZE + ICMPV4_ID_OFFSET)
            local id = lib.ntohs(pid[0])
---           print("icmp echo received with id=" .. id)
+           --           print("icmp echo received with id=" .. id)
            -- check if the id is within the B4's assigned range
-           local psid = band(id,shared_psmask)
-           local ipv4psid = lshift(dst_ipv4,16) + psid
+           local psid = bit.band(id,shared_psmask)
+           local ipv4psid = bit.band(0xffffffffffffLL, dst_ipv4)
+           local ipv4psid = tonumber(bit.bor(bit.lshift(ipv4psid,16), psid))
            dst_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
            if dst_ipv6 == nil then
---                print("id doesn't belong to the dst ipv6")
+             print("Encap ICMP id doesn't belong to the dst ipv6")
              break;
            else
- --               print("ICMP packet good. Passing it thru")
+             -- print("Encap: ICMP packet good. Passing it thru")
              drop = false
              break
            end
@@ -358,12 +361,15 @@ function lwaftr:push()
 
            -- TODO: any other protocols to accept besides ICMP, UDP and TCP?
            if protocol == PROTO_TCP or protocol == PROTO_UDP or protocol == PROTO_ICMP then
-             local psid = band(id,shared_psmask)
-             local ipv4psid = lshift(src_ipv4,16) + psid
+             local psid = bit.band(id,shared_psmask)
+             local ipv4psid = bit.band(0xffffffffffffLL, src_ipv4)
+             local ipv4psid = tonumber(bit.bor(bit.lshift(ipv4psid,16), psid))
              dst_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
              if dst_ipv6 ~= nil then
                drop = false
                break
+             else
+               print(string.format("Encap: dropping ICMP IPv4 packet. No binding found for ipv4psid 0x%x", ipv4psid))
              end
              break
            end
@@ -374,24 +380,27 @@ function lwaftr:push()
          break
        end
 
---       print("TCP or UDP packet found")
+       -- print("Encap TCP or UDP packet found")
 
        local pdstport = ffi.cast(pshort_ctype, p.data + ETHER_HEADER_SIZE + IPV4_DST_PORT_OFFSET)
        local dstport = lib.ntohs(pdstport[0])
-       local psid = 0
 
-       psid = band(dstport,shared_psmask)
-       local ipv4psid = lshift(dst_ipv4,16) + psid
+       local psid = bit.band(dstport,shared_psmask)
+       local ipv4psid = bit.band(0xffffffffffffLL, dst_ipv4)
+       local ipv4psid = tonumber(bit.bor(bit.lshift(ipv4psid,16), psid))
        dst_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
        if dst_ipv6 == nil then
-           break
+         print(string.format("Encap: dropping IPv4 TCP/UDP packet. No binding found for ipv4psid 0x%x", ipv4psid))
+         break
        end
+       -- print("Encap: matching IPv6 address found")
        drop = false
 
      until true
 
      if drop then
        -- discard packet
+       print("encap dropping packet")
        packet.free(p)
      else
        -- remove ethernet header
@@ -410,105 +419,110 @@ function lwaftr:push()
    l_out = self.output.decapsulated
    assert(l_in and l_out)
    while not link.empty(l_in) and not link.full(l_out) do
-      local p = link.receive(l_in)
-      -- match next header, cookie, src/dst addresses
-      local drop = true
-      repeat
-         if p.length < ETHER_IPV6_HEADER_SIZE then
-            break
-         end
+     local p = link.receive(l_in)
+     -- match next header, cookie, src/dst addresses
+     local drop = true
+     repeat
+       if p.length < ETHER_IPV6_HEADER_SIZE then
+         break
+       end
 
---         print ("packet received")
+       --         print ("packet received")
 
-         local next_header = ffi.cast(pchar_ctype, p.data + ETHER_HEADER_SIZE + NEXT_HEADER_OFFSET)
-         if next_header[0] ~= IPIP_NEXT_HEADER then
-            break
-         end
+       local next_header = ffi.cast(pchar_ctype, p.data + ETHER_HEADER_SIZE + NEXT_HEADER_OFFSET)
+       if next_header[0] ~= IPIP_NEXT_HEADER then
+         break
+       end
 
---         print ("ipip found")
+       --         print ("ipip found")
 
-         local key = ffi.string(p.data + ETHER_HEADER_SIZE + SRC_IPV6_OFFSET, 16)
-         local ipv4 = self.map_ipv6_to_ipv4[key]
+       local psrc_ipv4 = ffi.cast(pipv4_addr_ctype, p.data + ETHER_IPV6_HEADER_SIZE + SRC_IPV4_OFFSET)
+       local src_ipv4 = psrc_ipv4[0]
 
-         if ipv4 == nil then
-           break
-         end
+       local src_ipv6 = ffi.cast(pipv6_address_ctype, p.data + ETHER_HEADER_SIZE + SRC_IPV6_OFFSET)
 
---         print("found binding entry for IPv4 ")
+       local pprotocol = ffi.cast(pchar_ctype, p.data + ETHER_IPV6_HEADER_SIZE + IPV4_PROTOCOL_OFFSET)
+       local protocol = pprotocol[0]
 
-         local psrc_ipv4 = ffi.cast(pipv4_addr_ctype, p.data + ETHER_IPV6_HEADER_SIZE + SRC_IPV4_OFFSET)
-         local src_ipv4 = psrc_ipv4[0]
-         if src_ipv4 ~= ipv4 then
-           break
-         end
+       if protocol == PROTO_ICMP then
+         local ptype = ffi.cast(pchar_ctype, p.data + ETHER_IPV6_HEADER_SIZE + ICMPV4_TYPE_OFFSET)
+         local type = ptype[0]
+         if type == ICMP_ECHO_REPLY or type == ICMP_ECHO_REQUEST then
+           local pid = ffi.cast(pshort_ctype, p.data + ETHER_IPV6_HEADER_SIZE + ICMPV4_ID_OFFSET)
+           local id = lib.ntohs(pid[0])
+--           print ("icmp id=" .. id)
+           -- check if the id is within the B4's assigned range
+           local psid = bit.band(id,shared_psmask)
+           local ipv4psid = bit.band(0xffffffffffffLL, src_ipv4)
+           local ipv4psid = tonumber(bit.bor(bit.lshift(ipv4psid,16), psid))
+--           print(string.format("Decap IPv4=0x%X psid=%d ipv4psid=%X", src_ipv4, psid, ipv4psid))
+           local ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
 
-         -- Source IPv4 address is a match. Lets verify the source TCP/UDP port as well.
-         
-         local pprotocol = ffi.cast(pchar_ctype, p.data + ETHER_IPV6_HEADER_SIZE + IPV4_PROTOCOL_OFFSET)
-         local protocol = pprotocol[0]
-
-         if protocol == PROTO_ICMP then
-           local ptype = ffi.cast(pchar_ctype, p.data + ETHER_IPV6_HEADER_SIZE + ICMPV4_TYPE_OFFSET)
-           local type = ptype[0]
-           if type == ICMP_ECHO_REPLY or type == ICMP_ECHO_REQUEST then
-             local pid = ffi.cast(pshort_ctype, p.data + ETHER_IPV6_HEADER_SIZE + ICMPV4_ID_OFFSET)
-             local id = lib.ntohs(pid[0])
-             -- check if the id is within the B4's assigned range
-             local psid = band(id,shared_psmask)
-             local ipv4psid = lshift(src_ipv4,16) + psid
-             local src_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
-             if src_ipv6 == nil then
-               --             print("id doesn't belong to the src ipv6")
+           if ipv6 ~= nil then
+             local pipv6 = ffi.cast(pipv6_address_ctype, ipv6)
+             if pipv6[0] ~= src_ipv6[0] or
+               pipv6[1] ~= src_ipv6[1] then
+--               print("id doesn't belong to the src ipv6")
+                 print(string.format("Encap: dropping ICMP IPv4 packet. for ipv4psid 0x%x", ipv4psid))
                break;
-             else
-               --             print("ICMP packet good. Passing it thru")
-               drop = false
              end
-           else
-             break
            end
-         end
-
-         if protocol ~= PROTO_TCP and protocol ~= PROTO_UDP then
+--           print("Encap: ICMP packet good. Passing it thru")
+           drop = false
+         else
            break
          end
+       end
 
---         print("its a TCP or UDP packet and its IPv4 source address matches")
+       if protocol ~= PROTO_TCP and protocol ~= PROTO_UDP then
+         break
+       end
 
-         local psrcport = ffi.cast(pshort_ctype, p.data + ETHER_IPV6_HEADER_SIZE + IPV4_SRC_PORT_OFFSET)
-         local srcport = lib.ntohs(psrcport[0])
+--      print("its a TCP or UDP packet. Verify now if the binding matches the src IPv6")
 
-         local psid = band(srcport,shared_psmask)
-         local ipv4psid = lshift(src_ipv4,16) + psid
-         local src_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
-         if src_ipv6 == nil then
-           break
+       local psrcport = ffi.cast(pshort_ctype, p.data + ETHER_IPV6_HEADER_SIZE + IPV4_SRC_PORT_OFFSET)
+       local srcport = lib.ntohs(psrcport[0])
+       local psid = bit.band(srcport,shared_psmask)
+
+       local ipv4psid = bit.band(0xffffffffffffLL, src_ipv4)
+       local ipv4psid = tonumber(bit.bor(bit.lshift(ipv4psid,16), psid))
+       ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
+
+       if ipv6 ~= nil then
+         local pipv6 = ffi.cast(pipv6_address_ctype, ipv6)
+         if pipv6[0] ~= src_ipv6[0] or
+           pipv6[1] ~= src_ipv6[1] then
+             print(string.format("Decap: dropping TCP/UDP IPv4 packet. No matching source IPv6 address found ipv4psid 0x%x", ipv4psid))
+           break;
          end
-         -- Packet is good!
-         drop = false 
+       end
 
-      until true
+       -- Packet is good!
+       drop = false 
 
-      if drop then
-         packet.free(p)
-         -- maybe we don't drop and pass it on to the virtual machine unchanged?
---         link.transmit(l_out, p)
-      else
-         packet.shiftleft(p, ETHER_IPV6_HEADER_SIZE - 14)  -- leave Ethernet header
+     until true
 
-         -- set source and destination MAC and ethertype to ipv4
-         local pchar = ffi.cast(pchar_ctype, p.data + DST_MAC_OFFSET)
-         ffi.copy(pchar, self.remote_ipv4_mac.bytes, 6)
-         ffi.copy(pchar + 6, self.local_mac.bytes, 6)
+     if drop then
+       print("encap dropping packet")
+       packet.free(p)
+       -- maybe we don't drop and pass it on to the virtual machine unchanged?
+       --         link.transmit(l_out, p)
+     else
+       packet.shiftleft(p, ETHER_IPV6_HEADER_SIZE - 14)  -- leave Ethernet header
 
-         local pchar = ffi.cast(pchar_ctype, p.data + ETHERTYPE_OFFSET)
-         -- IPv4
-         pchar[0] = 0x08
-         pchar[1] = 0x00
-         link.transmit(l_out, p)
-      end
+       -- set source and destination MAC and ethertype to ipv4
+       local pchar = ffi.cast(pchar_ctype, p.data + DST_MAC_OFFSET)
+       ffi.copy(pchar, self.remote_ipv4_mac.bytes, 6)
+       ffi.copy(pchar + 6, self.local_mac.bytes, 6)
+
+       local pchar = ffi.cast(pchar_ctype, p.data + ETHERTYPE_OFFSET)
+       -- IPv4
+       pchar[0] = 0x08
+       pchar[1] = 0x00
+       link.transmit(l_out, p)
+     end
    end
-end
+ end
 
 -- prepare header template to be used by all apps
 prepare_header_template()

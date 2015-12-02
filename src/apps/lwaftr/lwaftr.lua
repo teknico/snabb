@@ -174,6 +174,14 @@ local function hex_dump(cdata,len)
   end
 end
 
+-- calculate the hash key for the lookup table
+-- Basically 4 Bytes IPv4 plus 2 Bytes masked out tcp/udp port id
+local function ipv4idkey(ipv4, id, psmask)
+  local psid = bit.band(id,psmask)
+  local ipv4psid = bit.band(0xffffffffffffLL, ipv4)
+  return tonumber(bit.bor(bit.lshift(ipv4psid,16), psid))
+end
+
 -- fill header template with const values
 local function prepare_header_template ()
    -- all bytes are zeroed after allocation
@@ -227,6 +235,8 @@ function lwaftr:new (arg)
    -- walk thru the binding_table and build assoc arrays for remote ipv6 address
    -- and ipv4 plus port mask.
 
+   local memory_in_use = collectgarbage("count")
+
    local count = 0
    for binding_ipv6_addr,binding in pairs(conf.binding_table) do
 
@@ -257,9 +267,9 @@ function lwaftr:new (arg)
      end
 
      local psidshifted = bit.lshift(psid,16 - psoffset - psid_len)
-     local ipv4psid = bit.band(0xffffffffffffLL, ipv4)
-     local ipv4psid = tonumber(bit.bor(bit.lshift(ipv4psid,16), psidshifted))
-     print(string.format("%d: IPv4=0x%X psid=%d ipv4psid=%X", count, ipv4, psid, ipv4psid))
+     local ipv4psid = ipv4idkey(ipv4, psidshifted, 0xffff)
+
+     -- print(string.format("%d: IPv4=0x%X psid=%d ipv4psid=%X", count, ipv4, psid, ipv4psid))
 
      -- check if there is already a mapping, which would be a mistake
      if map_ipv4psid_to_ipv6[ipv4psid] then
@@ -290,6 +300,8 @@ function lwaftr:new (arg)
    }
 
    print(string.format("%d bindings parsed", count))
+   local memory_delta = collectgarbage("count") - memory_in_use
+   print(memory_delta .. " kBytes used for the lookup table")
 
    return setmetatable(o, {__index = lwaftr})
 end
@@ -328,9 +340,7 @@ function lwaftr:push()
            local id = lib.ntohs(pid[0])
            --           print("icmp echo received with id=" .. id)
            -- check if the id is within the B4's assigned range
-           local psid = bit.band(id,shared_psmask)
-           local ipv4psid = bit.band(0xffffffffffffLL, dst_ipv4)
-           local ipv4psid = tonumber(bit.bor(bit.lshift(ipv4psid,16), psid))
+           local ipv4psid = ipv4idkey(dst_ipv4, id, shared_psmask)
            dst_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
            if dst_ipv6 == nil then
              -- print("Encap ICMP id doesn't belong to the dst ipv6")
@@ -358,9 +368,7 @@ function lwaftr:push()
 
            -- TODO: any other protocols to accept besides ICMP, UDP and TCP?
            if protocol == PROTO_TCP or protocol == PROTO_UDP or protocol == PROTO_ICMP then
-             local psid = bit.band(id,shared_psmask)
-             local ipv4psid = bit.band(0xffffffffffffLL, src_ipv4)
-             local ipv4psid = tonumber(bit.bor(bit.lshift(ipv4psid,16), psid))
+             local ipv4psid = ipv4idkey(src_ipv4, id, shared_psmask)
              dst_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
              if dst_ipv6 ~= nil then
                drop = false
@@ -382,9 +390,7 @@ function lwaftr:push()
        local pdstport = ffi.cast(pshort_ctype, p.data + ETHER_HEADER_SIZE + IPV4_DST_PORT_OFFSET)
        local dstport = lib.ntohs(pdstport[0])
 
-       local psid = bit.band(dstport,shared_psmask)
-       local ipv4psid = bit.band(0xffffffffffffLL, dst_ipv4)
-       local ipv4psid = tonumber(bit.bor(bit.lshift(ipv4psid,16), psid))
+       local ipv4psid = ipv4idkey(dst_ipv4, dstport, shared_psmask)
        dst_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
        if dst_ipv6 == nil then
          -- print(string.format("Encap: dropping IPv4 TCP/UDP packet. No binding found for ipv4psid 0x%x", ipv4psid))
@@ -448,10 +454,7 @@ function lwaftr:push()
            local id = lib.ntohs(pid[0])
 --           print ("icmp id=" .. id)
            -- check if the id is within the B4's assigned range
-           local psid = bit.band(id,shared_psmask)
-           local ipv4psid = bit.band(0xffffffffffffLL, src_ipv4)
-           local ipv4psid = tonumber(bit.bor(bit.lshift(ipv4psid,16), psid))
---           print(string.format("Decap IPv4=0x%X psid=%d ipv4psid=%X", src_ipv4, psid, ipv4psid))
+           local ipv4psid = ipv4idkey(src_ipv4, id, shared_psmask)
            local ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
 
            if ipv6 ~= nil then
@@ -474,10 +477,7 @@ function lwaftr:push()
 
        local psrcport = ffi.cast(pshort_ctype, p.data + ETHER_IPV6_HEADER_SIZE + IPV4_SRC_PORT_OFFSET)
        local srcport = lib.ntohs(psrcport[0])
-       local psid = bit.band(srcport,shared_psmask)
-
-       local ipv4psid = bit.band(0xffffffffffffLL, src_ipv4)
-       local ipv4psid = tonumber(bit.bor(bit.lshift(ipv4psid,16), psid))
+       local ipv4psid = ipv4idkey(src_ipv4, srcport, shared_psmask)
        ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
 
        if ipv6 ~= nil then

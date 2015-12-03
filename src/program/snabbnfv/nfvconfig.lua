@@ -44,7 +44,19 @@ function load (file, pciaddr, sockpath)
                   vmdq = vmdq,
                   macaddr = mac_address,
                   vlan = vlan})
-      config.app(c, Virtio, VhostUser, {socket_path=sockpath:format(t.port_id)})
+
+      print("sockpath=" .. sockpath)
+      local device_info2 = pci.device_info(sockpath)
+      if device_info2 then
+        -- hack to use a 2nd 10GE port instead of a virtio interface
+        config.app(c, Virtio, require(device_info2.driver).driver,
+          {pciaddr = sockpath,
+          vmdq = false,
+          macaddr = nil,
+          vlan = nil})
+      else
+        config.app(c, Virtio, VhostUser, {socket_path=sockpath:format(t.port_id)})
+      end
       local VM_rx, VM_tx = Virtio..".rx", Virtio..".tx"
       if t.tx_police_gbps then
          local TxLimit = name.."_TxLimit"

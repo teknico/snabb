@@ -91,6 +91,15 @@ function nd_light:new (arg)
    conf.local_ip = check_ip_address(conf.local_ip, "local")
    conf.next_hop = check_ip_address(conf.next_hop, "next-hop")
 
+   -- hack mwiget
+   if type(conf.next_hop_mac) == "string" and string.len(conf.next_hop_mac) ~= 6 then
+      o._eth_header = ethernet:new({ src = self._config.local_mac,
+                                     dst = ethernet:pton(conf.next_hop_mac),
+                                     type = 0x86dd })
+      print(string.format("Static next-hop %s to %s", ipv6:ntop(self._config.next_hop),
+                       ethernet:ntop(option[1]:option():addr())))
+   end
+
    o._config = conf
    o._match_ns = function(ns)
                     return(ns:target_eq(conf.local_ip))

@@ -420,16 +420,20 @@ function lwaftr:push()
    l_in = self.input.encapsulated
    l_out = self.output.decapsulated
    assert(l_in and l_out)
+
    while not link.empty(l_in) and not link.full(l_out) do
      local p = link.receive(l_in)
-     -- match next header, cookie, src/dst addresses
+
      local drop = true
+     local ipv6
+
      repeat
+
        if p.length < ETHER_IPV6_HEADER_SIZE then
          break
        end
 
-       --         print ("packet received")
+       --         print ("Decap: packet received")
 
        local next_header = ffi.cast(pchar_ctype, p.data + ETHER_HEADER_SIZE + NEXT_HEADER_OFFSET)
        if next_header[0] ~= IPIP_NEXT_HEADER then
@@ -455,7 +459,7 @@ function lwaftr:push()
 --           print ("icmp id=" .. id)
            -- check if the id is within the B4's assigned range
            local ipv4psid = ipv4idkey(src_ipv4, id, self.shared_psmask)
-           local ipv6 = self.map_ipv4psid_to_ipv6[ipv4psid]
+           ipv6 = self.map_ipv4psid_to_ipv6[ipv4psid]
 
            if ipv6 ~= nil then
              local pipv6 = ffi.cast(pipv6_address_ctype, ipv6)
@@ -480,7 +484,7 @@ function lwaftr:push()
        local ipv4psid = ipv4idkey(src_ipv4, srcport, self.shared_psmask)
        ipv6 = self.map_ipv4psid_to_ipv6[ipv4psid]
 
-       if ipv6 ~= nil then
+       if ipv6 then
          local pipv6 = ffi.cast(pipv6_address_ctype, ipv6)
          if pipv6[0] ~= src_ipv6[0] or
            pipv6[1] ~= src_ipv6[1] then

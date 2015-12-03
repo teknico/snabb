@@ -201,13 +201,10 @@ end
 
 lwaftr = {}
 
-
 -- Decap & Encap path:
 --   Key: IPv4 destination address and psid (32 + 16 = 48 bits)
 --   Value: IPv6 destination address
 --
-map_ipv4psid_to_ipv6 = {}
-shared_psmask = 0
 
 function lwaftr:new (arg)
    local conf = arg and config.parse_app_arg(arg) or {}
@@ -218,6 +215,8 @@ function lwaftr:new (arg)
          "need ipv6_interface IPv6 address"
       )
    
+   local map_ipv4psid_to_ipv6 = {}
+   local shared_psmask = 0
    local header = char_ctype(ETHER_IPV6_HEADER_SIZE)
    ffi.copy(header, header_template, ETHER_IPV6_HEADER_SIZE)
 
@@ -296,7 +295,8 @@ function lwaftr:new (arg)
       header = header,
       local_mac = local_mac,
       remote_ipv4_mac = remote_ipv4_mac,
-      map_ipv4psid_to_ipv6
+      shared_psmask = shared_psmask,
+      map_ipv4psid_to_ipv6 = map_ipv4psid_to_ipv6
    }
 
    print(string.format("%d bindings parsed", count))
@@ -340,8 +340,8 @@ function lwaftr:push()
            local id = lib.ntohs(pid[0])
            --           print("icmp echo received with id=" .. id)
            -- check if the id is within the B4's assigned range
-           local ipv4psid = ipv4idkey(dst_ipv4, id, shared_psmask)
-           dst_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
+           local ipv4psid = ipv4idkey(dst_ipv4, id, self.shared_psmask)
+           dst_ipv6 = self.map_ipv4psid_to_ipv6[ipv4psid]
            if dst_ipv6 == nil then
              -- print("Encap ICMP id doesn't belong to the dst ipv6")
              break;
@@ -368,8 +368,8 @@ function lwaftr:push()
 
            -- TODO: any other protocols to accept besides ICMP, UDP and TCP?
            if protocol == PROTO_TCP or protocol == PROTO_UDP or protocol == PROTO_ICMP then
-             local ipv4psid = ipv4idkey(src_ipv4, id, shared_psmask)
-             dst_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
+             local ipv4psid = ipv4idkey(src_ipv4, id, self.shared_psmask)
+             dst_ipv6 = self.map_ipv4psid_to_ipv6[ipv4psid]
              if dst_ipv6 ~= nil then
                drop = false
                break
@@ -390,8 +390,8 @@ function lwaftr:push()
        local pdstport = ffi.cast(pshort_ctype, p.data + ETHER_HEADER_SIZE + IPV4_DST_PORT_OFFSET)
        local dstport = lib.ntohs(pdstport[0])
 
-       local ipv4psid = ipv4idkey(dst_ipv4, dstport, shared_psmask)
-       dst_ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
+       local ipv4psid = ipv4idkey(dst_ipv4, dstport, self.shared_psmask)
+       dst_ipv6 = self.map_ipv4psid_to_ipv6[ipv4psid]
        if dst_ipv6 == nil then
          -- print(string.format("Encap: dropping IPv4 TCP/UDP packet. No binding found for ipv4psid 0x%x", ipv4psid))
          break
@@ -454,8 +454,8 @@ function lwaftr:push()
            local id = lib.ntohs(pid[0])
 --           print ("icmp id=" .. id)
            -- check if the id is within the B4's assigned range
-           local ipv4psid = ipv4idkey(src_ipv4, id, shared_psmask)
-           local ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
+           local ipv4psid = ipv4idkey(src_ipv4, id, self.shared_psmask)
+           local ipv6 = self.map_ipv4psid_to_ipv6[ipv4psid]
 
            if ipv6 ~= nil then
              local pipv6 = ffi.cast(pipv6_address_ctype, ipv6)
@@ -477,8 +477,8 @@ function lwaftr:push()
 
        local psrcport = ffi.cast(pshort_ctype, p.data + ETHER_IPV6_HEADER_SIZE + IPV4_SRC_PORT_OFFSET)
        local srcport = lib.ntohs(psrcport[0])
-       local ipv4psid = ipv4idkey(src_ipv4, srcport, shared_psmask)
-       ipv6 = map_ipv4psid_to_ipv6[ipv4psid]
+       local ipv4psid = ipv4idkey(src_ipv4, srcport, self.shared_psmask)
+       ipv6 = self.map_ipv4psid_to_ipv6[ipv4psid]
 
        if ipv6 ~= nil then
          local pipv6 = ffi.cast(pipv6_address_ctype, ipv6)

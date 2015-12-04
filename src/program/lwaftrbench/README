@@ -1,0 +1,6 @@
+Usage: lwaftrbench packet_ipv6.pcap packet_trunk.pcap
+
+  -h, --help
+                             Print usage information.
+
+

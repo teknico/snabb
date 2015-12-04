@@ -179,7 +179,8 @@ end
 local function ipv4idkey(ipv4, id, psmask)
   local psid = bit.band(id,psmask)
   local ipv4psid = bit.band(0xffffffffffffLL, ipv4)
-  return tonumber(bit.bor(bit.lshift(ipv4psid,16), psid))
+  local key = tonumber(bit.bor(bit.lshift(ipv4psid,16), psid))
+  return key
 end
 
 -- fill header template with const values
@@ -299,10 +300,8 @@ function lwaftr:new (arg)
       map_ipv4psid_to_ipv6 = map_ipv4psid_to_ipv6
    }
 
-   print(string.format("%d bindings parsed", count))
    local memory_delta = collectgarbage("count") - memory_in_use
-   print(memory_delta .. " kBytes used for the lookup table")
-
+   print(string.format("%d bindings parsed, using %.0f kBytes", count, memory_delta))
    return setmetatable(o, {__index = lwaftr})
 end
 
@@ -393,7 +392,7 @@ function lwaftr:push()
        local ipv4psid = ipv4idkey(dst_ipv4, dstport, self.shared_psmask)
        dst_ipv6 = self.map_ipv4psid_to_ipv6[ipv4psid]
        if dst_ipv6 == nil then
-         -- print(string.format("Encap: dropping IPv4 TCP/UDP packet. No binding found for ipv4psid 0x%x", ipv4psid))
+         print(string.format("Encap: dropping IPv4 TCP/UDP packet. No binding found for ipv4psid 0x%x", ipv4psid))
          break
        end
        -- print("Encap: matching IPv6 address found")
@@ -403,6 +402,7 @@ function lwaftr:push()
 
      if drop then
        -- discard packet
+       print("encap packet dropped")
        packet.free(p)
      else
        -- remove ethernet header

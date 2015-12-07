@@ -1,5 +1,22 @@
 # Change Log
 
+## [1.1] - 2015-11-27
+
+### Added
+
+- Backported IPv4 reassembly (necessary for fragmented packets to be forwarded).
+- Added debug=true as an optional configuration possibility.
+- Expanded test support to have equal coverage for VLANs.
+
+### Fixed
+
+- Outgoing ICMP with VLANs was broken (it didn't add vlan tags).
+- Definition of MTU is now L3 rather than L2 based, and excludes the L2 headers. A side effect: this fixed fragmentation problems with MTU sizes 1500-v4 and 1540-v6 that were caused by packets larger than those sizes when L2 headers were included in the size calculation.
+- Fixed a use-after-free with IPv6 fragment handling.
+- Fixed corrupting the packet cache every time a fragment was received but at least one fragment was still missing.
+- Fixed fragmentation problems with MTU sizes 1500-v4 and 1540-v6.
+- Improved IPv4 and IPv6 fragment caching.
+
 ## [1.0] - 2015-10-01
 
 ### Added

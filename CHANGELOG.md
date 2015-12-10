@@ -1,5 +1,16 @@
 # Change Log
 
+## [1.2] - 2015-12-10
+
+### Added
+
+- Numerous UDP tests, including outgoing IPv4 and IPv6 UDP fragments.
+
+### Fixed
+
+- Hairpinning the ICMPv4 packet to relay information from incoming ICMPv6
+  packets was broken and is now fixed.
+
 ## [1.1] - 2015-11-27
 
 ### Added

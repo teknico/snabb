@@ -34,9 +34,11 @@ local debug = false
 
 -- Local bindings for constants that are used in the hot path of the
 -- data plane.  Not having them here is a 1-2% performance penalty.
-local ipv6_fixed_header_size = constants.ipv6_fixed_header_size
+local ethernet_header_size = constants.ethernet_header_size
+local o_ethernet_ethertype = constants.o_ethernet_ethertype
 local n_ethertype_ipv4 = constants.n_ethertype_ipv4
 local n_ethertype_ipv6 = constants.n_ethertype_ipv6
+
 local o_ipv4_checksum = constants.o_ipv4_checksum
 local o_ipv4_dscp_and_ecn = constants.o_ipv4_dscp_and_ecn
 local o_ipv4_dst_addr = constants.o_ipv4_dst_addr
@@ -47,9 +49,12 @@ local o_ipv4_src_addr = constants.o_ipv4_src_addr
 local o_ipv4_total_length = constants.o_ipv4_total_length
 local o_ipv4_ttl = constants.o_ipv4_ttl
 local o_ipv4_ver_and_ihl = constants.o_ipv4_ver_and_ihl
+
+local ipv6_fixed_header_size = constants.ipv6_fixed_header_size
 local o_ipv6_dst_addr = constants.o_ipv6_dst_addr
 local o_ipv6_next_header = constants.o_ipv6_next_header
 local o_ipv6_src_addr = constants.o_ipv6_src_addr
+
 local proto_icmp = constants.proto_icmp
 local proto_icmpv6 = constants.proto_icmpv6
 local proto_ipv4 = constants.proto_ipv4
@@ -126,8 +131,6 @@ function LwAftr:new(conf)
 
    o.binding_table = bt.load(o.conf.binding_table)
 
-   o.l2_size = constants.ethernet_header_size
-   o.o_ethernet_ethertype = constants.o_ethernet_ethertype
    transmit_icmpv6_with_rate_limit = init_transmit_icmpv6_with_rate_limit(o)
    on_signal("hup", function()
       print('Reloading binding table.')
@@ -161,10 +164,10 @@ local function fixup_checksum(pkt, csum_offset, fixup_val)
 end
 
 local function decrement_ttl(lwstate, pkt)
-   local ttl_offset = lwstate.l2_size + o_ipv4_ttl
+   local ttl_offset = ethernet_header_size + o_ipv4_ttl
    pkt.data[ttl_offset] = pkt.data[ttl_offset] - 1
    local ttl = pkt.data[ttl_offset]
-   local csum_offset = lwstate.l2_size + o_ipv4_checksum
+   local csum_offset = ethernet_header_size + o_ipv4_checksum
    -- ttl_offset is even, so multiply the ttl change by 0x100.
    fixup_checksum(pkt, csum_offset, -0x100)
    return ttl
@@ -239,7 +242,7 @@ local function icmp_after_discard(lwstate, pkt, to_ip)
                         }
    local icmp_dis = icmp.new_icmpv4_packet(lwstate.aftr_mac_inet_side, lwstate.inet_mac,
                                            lwstate.aftr_ipv4_ip, to_ip, pkt,
-                                           lwstate.l2_size, icmp_config)
+                                           ethernet_header_size, icmp_config)
    return transmit(lwstate.o4, icmp_dis)
 end
 
@@ -251,20 +254,20 @@ local function icmp_b4_lookup_failed(lwstate, pkt, to_ip)
                        }
    local b4fail_icmp = icmp.new_icmpv6_packet(lwstate.aftr_mac_b4_side, lwstate.b4_mac,
                                               lwstate.aftr_ipv6_ip, to_ip, pkt,
-                                              lwstate.l2_size, icmp_config)
+                                              ethernet_header_size, icmp_config)
    transmit_icmpv6_with_rate_limit(lwstate.o6, b4fail_icmp)
 end
 
 local function encapsulating_packet_with_df_flag_would_exceed_mtu(lwstate, pkt)
    local encapsulated_len = pkt.length + ipv6_fixed_header_size
-   if encapsulated_len - lwstate.l2_size <= lwstate.ipv6_mtu then
+   if encapsulated_len - ethernet_header_size <= lwstate.ipv6_mtu then
       -- Packet will not exceed MTU.
       return false
    end
 
    -- The result would exceed the IPv6 MTU; signal an error via ICMPv4 if
    -- the IPv4 fragment has the DF flag.
-   local flags = pkt.data[lwstate.l2_size + o_ipv4_flags]
+   local flags = pkt.data[ethernet_header_size + o_ipv4_flags]
    return band(flags, 0x40) == 0x40
 end
 
@@ -274,7 +277,7 @@ local function cannot_fragment_df_packet_error(lwstate, pkt)
    -- as per https://tools.ietf.org/html/rfc2473#section-7.2
    if debug then lwdebug.print_pkt(pkt) end
    -- The source address of the packet is where the ICMP packet should be sent
-   local o_src = lwstate.l2_size + constants.o_ipv4_src_addr
+   local o_src = ethernet_header_size + constants.o_ipv4_src_addr
    local dst_ip = pkt.data + o_src
    local icmp_config = {
       type = constants.icmpv4_dst_unreachable,
@@ -284,7 +287,7 @@ local function cannot_fragment_df_packet_error(lwstate, pkt)
    }
    return icmp.new_icmpv4_packet(lwstate.aftr_mac_inet_side, lwstate.inet_mac,
                                  lwstate.aftr_ipv4_ip, dst_ip, pkt,
-                                 lwstate.l2_size, icmp_config)
+                                 ethernet_header_size, icmp_config)
 end
 
 -- Given a packet containing IPv4 and Ethernet, encapsulate the IPv4 portion.
@@ -301,7 +304,7 @@ local function ipv6_encapsulate(lwstate, pkt, next_hdr_type, ipv6_src, ipv6_dst,
    end
 
    -- As if it were Ethernet decapsulated.
-   local offset = lwstate.l2_size
+   local offset = ethernet_header_size
    local payload_length = pkt.length - offset
    local dscp_and_ecn = pkt.data[offset + o_ipv4_dscp_and_ecn]
    -- Make room at the beginning for IPv6 header.
@@ -311,7 +314,7 @@ local function ipv6_encapsulate(lwstate, pkt, next_hdr_type, ipv6_src, ipv6_dst,
    write_eth_header(pkt.data, ether_src, ether_dst, eth_type)
 
    -- Modify IPv6 header.
-   write_ipv6_header(pkt.data + lwstate.l2_size, ipv6_src, ipv6_dst,
+   write_ipv6_header(pkt.data + ethernet_header_size, ipv6_src, ipv6_dst,
                      dscp_and_ecn, next_hdr_type, payload_length)
 
    if debug then
@@ -322,8 +325,8 @@ local function ipv6_encapsulate(lwstate, pkt, next_hdr_type, ipv6_src, ipv6_dst,
 end
 
 local function icmpv4_incoming(lwstate, pkt)
-   local ipv4_header_size = get_ihl_from_offset(pkt, lwstate.l2_size)
-   local icmp_base = lwstate.l2_size + ipv4_header_size
+   local ipv4_header_size = get_ihl_from_offset(pkt, ethernet_header_size)
+   local icmp_base = ethernet_header_size + ipv4_header_size
    local ip_base = icmp_base + constants.icmp_base_size
    local icmp_type_offset = icmp_base -- it's the zeroeth byte of the ICMP header
    local icmp_type = pkt.data[icmp_type_offset]
@@ -335,7 +338,7 @@ local function icmpv4_incoming(lwstate, pkt)
    -- Note: the lwaftr SHOULD NOT validate the transport checksum of the embedded packet.
    -- Were it to nonetheless do so, RFC 4884 extension headers MUST NOT
    -- be taken into account when validating the checksum
-   local o_tl = lwstate.l2_size + o_ipv4_total_length
+   local o_tl = ethernet_header_size + o_ipv4_total_length
    local icmp_bytes = ntohs(rd16(pkt.data + o_tl)) - ipv4_header_size
    if checksum.ipsum(pkt.data + icmp_base, icmp_bytes, 0) ~= 0 then
       packet.free(pkt)
@@ -346,7 +349,7 @@ local function icmpv4_incoming(lwstate, pkt)
    if icmp_type == constants.icmpv4_echo_reply or icmp_type == constants.icmpv4_echo_request then
       source_port = ntohs(rd16(pkt.data + icmp_base + constants.o_icmpv4_echo_identifier))
       -- Use the outermost IP header for the destination; it's not repeated in the payload
-      ipv4_dst = rd32(pkt.data + lwstate.l2_size + constants.o_ipv4_dst_addr)
+      ipv4_dst = rd32(pkt.data + ethernet_header_size + constants.o_ipv4_dst_addr)
    else
       -- source port is the zeroeth byte of an encapsulated tcp or udp packet
       -- TODO: explicitly check for tcp/udp?
@@ -376,7 +379,7 @@ end
 local function from_inet(lwstate, pkt)
    -- Check incoming ICMP -first-, because it has different binding table lookup logic
    -- than other protocols.
-   local proto_offset = lwstate.l2_size + o_ipv4_proto
+   local proto_offset = ethernet_header_size + o_ipv4_proto
    local proto = pkt.data[proto_offset]
    if proto == proto_icmp then
       if lwstate.policy_icmpv4_incoming == lwconf.policies['DROP'] then
@@ -388,14 +391,14 @@ local function from_inet(lwstate, pkt)
    end
 
    -- It's not incoming ICMP; back to regular processing
-   local ipv6_dst, ipv6_src = binding_lookup_dst_ipv4_from_pkt(lwstate, pkt, lwstate.l2_size)
+   local ipv6_dst, ipv6_src = binding_lookup_dst_ipv4_from_pkt(lwstate, pkt, ethernet_header_size)
    if not ipv6_dst then
       if debug then print("lookup failed") end
       if lwstate.policy_icmpv4_outgoing == lwconf.policies['DROP'] then
          packet.free(pkt)
          return -- lookup failed
       else
-         local src_ip_start = lwstate.l2_size + o_ipv4_src_addr
+         local src_ip_start = ethernet_header_size + o_ipv4_src_addr
          local to_ip = pkt.data + src_ip_start
          return icmp_after_discard(lwstate, pkt, to_ip)-- ICMPv4 type 3 code 1 (dst/host unreachable)
       end
@@ -410,14 +413,14 @@ local function from_inet(lwstate, pkt)
       if lwstate.policy_icmpv4_outgoing == lwconf.policies['DROP'] then
          return
       end
-      local o_src = lwstate.l2_size + constants.o_ipv4_src_addr
+      local o_src = ethernet_header_size + constants.o_ipv4_src_addr
       local dst_ip = pkt.data + o_src
       local icmp_config = {type = constants.icmpv4_time_exceeded,
                            code = constants.icmpv4_ttl_exceeded_in_transit,
                            }
       local ttl0_icmp =  icmp.new_icmpv4_packet(lwstate.aftr_mac_inet_side, lwstate.inet_mac,
                                                 lwstate.aftr_ipv4_ip, dst_ip, pkt,
-                                                lwstate.l2_size, icmp_config)
+                                                ethernet_header_size, icmp_config)
       return transmit(lwstate.o4, ttl0_icmp)
    end
 
@@ -428,7 +431,7 @@ end
 
 local function tunnel_packet_too_big(lwstate, pkt)
    local ipv6_hs = constants.ipv6_fixed_header_size
-   local eth_hs = lwstate.l2_size
+   local eth_hs = ethernet_header_size
    local icmp_hs = constants.icmp_base_size
    local orig_packet_offset = eth_hs + ipv6_hs + icmp_hs + ipv6_hs
 
@@ -444,14 +447,14 @@ local function tunnel_packet_too_big(lwstate, pkt)
    local dst_ip = pkt.data + o_src
    local icmp_reply = icmp.new_icmpv4_packet(lwstate.aftr_mac_inet_side, lwstate.inet_mac,
                                              lwstate.aftr_ipv4_ip, dst_ip, pkt,
-                                             lwstate.l2_size, icmp_config)
+                                             ethernet_header_size, icmp_config)
    return icmp_reply
 end
 
 -- This is highly redundant code, but it avoids conditionals
 local function tunnel_generic_unreachable(lwstate, pkt)
    local ipv6_hs = constants.ipv6_fixed_header_size
-   local eth_hs = lwstate.l2_size
+   local eth_hs = ethernet_header_size
    local icmp_hs = constants.icmp_base_size
    local orig_packet_offset = eth_hs + ipv6_hs + icmp_hs + ipv6_hs
    local icmp_config = {type = constants.icmpv4_dst_unreachable,
@@ -462,12 +465,12 @@ local function tunnel_generic_unreachable(lwstate, pkt)
    local dst_ip = pkt.data + o_src
    local icmp_reply = icmp.new_icmpv4_packet(lwstate.aftr_mac_inet_side, lwstate.inet_mac,
                                              lwstate.aftr_ipv4_ip, dst_ip, pkt,
-                                             lwstate.l2_size, icmp_config)
+                                             ethernet_header_size, icmp_config)
    return icmp_reply
 end
 
 local function icmpv6_incoming(lwstate, pkt)
-   local icmpv6_offset = lwstate.l2_size + constants.ipv6_fixed_header_size
+   local icmpv6_offset = ethernet_header_size + constants.ipv6_fixed_header_size
    local icmp_type = pkt.data[icmpv6_offset]
    local icmp_code = pkt.data[icmpv6_offset + 1]
    local icmpv4_reply
@@ -496,8 +499,8 @@ local function icmpv6_incoming(lwstate, pkt)
    -- network, send it there. If hairpinning is/was enabled, it could be from a
    -- b4; if it was from a b4, encapsulate the generated IPv4 message and send it.
    -- This is the most plausible reading of RFC 2473, although not unambigous.
-   local first_ipv4_header_bytes = get_ihl_from_offset(icmpv4_reply, lwstate.l2_size)
-   local pre_embed_ipv4_bytes = lwstate.l2_size + first_ipv4_header_bytes + constants.icmp_base_size
+   local first_ipv4_header_bytes = get_ihl_from_offset(icmpv4_reply, ethernet_header_size)
+   local pre_embed_ipv4_bytes = ethernet_header_size + first_ipv4_header_bytes + constants.icmp_base_size
    local ipv6_dst = binding_lookup_src_ipv4_from_pkt(lwstate, icmpv4_reply, pre_embed_ipv4_bytes)
    if ipv6_dst and lwstate.hairpinning then
       if debug then print("Hairpinning ICMPv4 mapped from ICMPv6") end
@@ -513,17 +516,17 @@ local function icmpv6_incoming(lwstate, pkt)
 end
 
 local function get_ipv6_src_ip(lwstate, pkt)
-   local ipv6_src = lwstate.l2_size + o_ipv6_src_addr
+   local ipv6_src = ethernet_header_size + o_ipv6_src_addr
    return fstring(pkt.data + ipv6_src, 16)
 end
 
 local function get_ipv6_dst_ip(lwstate, pkt)
-   local ipv6_dst = lwstate.l2_size + o_ipv6_dst_addr
+   local ipv6_dst = ethernet_header_size + o_ipv6_dst_addr
    return fstring(pkt.data + ipv6_dst, 16)
 end
 
 local function from_b4(lwstate, pkt)
-   local proto_offset = lwstate.l2_size + o_ipv6_next_header
+   local proto_offset = ethernet_header_size + o_ipv6_next_header
    local proto = pkt.data[proto_offset]
    if proto == proto_icmpv6 then
       if lwstate.policy_icmpv6_incoming == lwconf.policies['DROP'] then
@@ -535,10 +538,10 @@ local function from_b4(lwstate, pkt)
    end
 
    -- check src ipv4, ipv6, and port against the binding table
-   local ipv6_src_ip_offset = lwstate.l2_size + o_ipv6_src_addr
-   local ipv6_dst_ip_offset = lwstate.l2_size + o_ipv6_dst_addr
+   local ipv6_src_ip_offset = ethernet_header_size + o_ipv6_src_addr
+   local ipv6_dst_ip_offset = ethernet_header_size + o_ipv6_dst_addr
    -- FIXME: deal with multiple IPv6 headers?
-   local eth_and_ipv6 = lwstate.l2_size + ipv6_fixed_header_size
+   local eth_and_ipv6 = ethernet_header_size + ipv6_fixed_header_size
    local ipv4_src_ip_offset = eth_and_ipv6 + o_ipv4_src_addr
    -- FIXME: as above + non-tcp/non-udp payloads
    local ipv4_src_port_offset = eth_and_ipv6 + get_ihl_from_offset(pkt, eth_and_ipv6)
@@ -550,7 +553,7 @@ local function from_b4(lwstate, pkt)
    if in_binding_table(lwstate, ipv6_src_ip, ipv6_dst_ip, ipv4_src_ip, ipv4_src_port) then
       -- Is it worth optimizing this to change src_eth, src_ipv6, ttl, checksum,
       -- rather than decapsulating + re-encapsulating? It would be faster, but more code.
-      local offset = lwstate.l2_size + ipv6_fixed_header_size
+      local offset = ethernet_header_size + ipv6_fixed_header_size
       if debug then
          print("lwstate.hairpinning is", lwstate.hairpinning)
          print("binding_lookup...", binding_lookup_dst_ipv4_from_pkt(lwstate, pkt, offset))
@@ -604,7 +607,7 @@ function LwAftr:push ()
       local pkt = receive(i4)
       if debug then print("got a pkt") end
       -- Keep the ethertype in network byte order
-      local ethertype = rd16(pkt.data + self.o_ethernet_ethertype)
+      local ethertype = rd16(pkt.data + o_ethernet_ethertype)
 
       if ethertype == n_ethertype_ipv4 then -- Incoming packet from the internet
          from_inet(self, pkt)
@@ -616,7 +619,7 @@ function LwAftr:push ()
    for _=1,math.min(link.nreadable(i6), link.nwritable(o4)) do
       local pkt = receive(i6)
       if debug then print("got a pkt") end
-      local ethertype = rd16(pkt.data + self.o_ethernet_ethertype)
+      local ethertype = rd16(pkt.data + o_ethernet_ethertype)
       if ethertype == n_ethertype_ipv6 then
          -- decapsulate iff the source was a b4, and forward/hairpin/ICMPv6 as needed
          from_b4(self, pkt)

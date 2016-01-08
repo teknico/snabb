@@ -24,7 +24,8 @@ local band, bor, bnot = bit.band, bit.bor, bit.bnot
 local rshift, lshift = bit.rshift, bit.lshift
 local cast = ffi.cast
 local receive, transmit = link.receive, link.transmit
-local rd16, rd32, get_ihl_from_offset = lwutil.rd16, lwutil.rd32, lwutil.get_ihl_from_offset
+local rd16, wr16, rd32 = lwutil.rd16, lwutil.wr16, lwutil.rd32
+local get_ihl_from_offset = lwutil.get_ihl_from_offset
 local htons, htonl = lwutil.htons, lwutil.htonl
 local ntohs, ntohl = htons, htonl
 local keys = lwutil.keys
@@ -157,33 +158,23 @@ function LwAftr:new(conf)
    return o
 end
 
-local function fixup_checksum(pkt, csum_offset, fixup_val)
-   assert(math.abs(fixup_val) <= 0xffff, "Invalid fixup")
-   local csum = bnot(ntohs(rd16(pkt.data + csum_offset)))
-   if debug then print("old csum", string.format("%x", csum)) end
-   csum = csum + fixup_val
-   -- TODO/FIXME: *test* this code
-   -- Manually unrolled loop; max 2 iterations, extra iterations
-   -- don't hurt, bitops are fast and ifs are slow.
-   local overflow = rshift(csum, 16)
-   csum = band(csum, 0xffff) + overflow
-   local overflow = rshift(csum, 16)
-   csum = band(csum, 0xffff) + overflow
-   csum = bnot(csum)
-
-   if debug then print("new csum", string.format("%x", csum)) end
-   pkt.data[csum_offset] = rshift(csum, 8)
-   pkt.data[csum_offset + 1] = band(csum, 0xff)
-end
-
 local function decrement_ttl(pkt)
-   local ttl_offset = ethernet_header_size + o_ipv4_ttl
-   pkt.data[ttl_offset] = pkt.data[ttl_offset] - 1
-   local ttl = pkt.data[ttl_offset]
-   local csum_offset = ethernet_header_size + o_ipv4_checksum
-   -- ttl_offset is even, so multiply the ttl change by 0x100.
-   fixup_checksum(pkt, csum_offset, -0x100)
-   return ttl
+   local ipv4_header = get_ethernet_payload(pkt)
+   local checksum = bnot(ntohs(rd16(ipv4_header + o_ipv4_checksum)))
+   local old_ttl = ipv4_header[o_ipv4_ttl]
+   local new_ttl = band(old_ttl - 1, 0xff)
+   ipv4_header[o_ipv4_ttl] = new_ttl
+   -- Now fix up the checksum.  o_ipv4_ttl is the first byte in the
+   -- 16-bit big-endian word, so the difference to the overall sum is
+   -- multiplied by 0xff.
+   checksum = checksum + lshift(new_ttl - old_ttl, 8)
+   -- Now do the one's complement 16-bit addition of the 16-bit words of
+   -- the checksum, which necessarily is a 32-bit value.  Two carry
+   -- iterations will suffice.
+   checksum = band(checksum, 0xffff) + rshift(checksum, 16)
+   checksum = band(checksum, 0xffff) + rshift(checksum, 16)
+   wr16(ipv4_header + o_ipv4_checksum, htons(bnot(checksum)))
+   return new_ttl
 end
 
 local function get_lwAFTR_ipv6(lwstate, binding_entry)

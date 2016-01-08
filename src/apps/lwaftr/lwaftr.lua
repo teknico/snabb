@@ -22,7 +22,7 @@ local ffi = require("ffi")
 
 local band, bor, bnot = bit.band, bit.bor, bit.bnot
 local rshift, lshift = bit.rshift, bit.lshift
-local cast, fstring = ffi.cast, ffi.string
+local cast = ffi.cast
 local receive, transmit = link.receive, link.transmit
 local rd16, rd32, get_ihl_from_offset = lwutil.rd16, lwutil.rd32, lwutil.get_ihl_from_offset
 local htons, htonl = lwutil.htons, lwutil.htonl
@@ -163,7 +163,7 @@ local function fixup_checksum(pkt, csum_offset, fixup_val)
    pkt.data[csum_offset + 1] = band(csum, 0xff)
 end
 
-local function decrement_ttl(lwstate, pkt)
+local function decrement_ttl(pkt)
    local ttl_offset = ethernet_header_size + o_ipv4_ttl
    pkt.data[ttl_offset] = pkt.data[ttl_offset] - 1
    local ttl = pkt.data[ttl_offset]
@@ -408,7 +408,7 @@ local function from_inet(lwstate, pkt)
    local ether_dst = lwstate.b4_mac -- FIXME: this should probaby use NDP
 
    -- Do not encapsulate packets that now have a ttl of zero or wrapped around
-   local ttl = decrement_ttl(lwstate, pkt)
+   local ttl = decrement_ttl(pkt)
    if ttl == 0 or ttl == 255 then
       if lwstate.policy_icmpv4_outgoing == lwconf.policies['DROP'] then
          return
@@ -513,16 +513,6 @@ local function icmpv6_incoming(lwstate, pkt)
    else
       return transmit(lwstate.o4, icmpv4_reply)
    end
-end
-
-local function get_ipv6_src_ip(lwstate, pkt)
-   local ipv6_src = ethernet_header_size + o_ipv6_src_addr
-   return fstring(pkt.data + ipv6_src, 16)
-end
-
-local function get_ipv6_dst_ip(lwstate, pkt)
-   local ipv6_dst = ethernet_header_size + o_ipv6_dst_addr
-   return fstring(pkt.data + ipv6_dst, 16)
 end
 
 local function from_b4(lwstate, pkt)

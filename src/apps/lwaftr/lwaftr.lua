@@ -39,6 +39,13 @@ local o_ethernet_ethertype = constants.o_ethernet_ethertype
 local n_ethertype_ipv4 = constants.n_ethertype_ipv4
 local n_ethertype_ipv6 = constants.n_ethertype_ipv6
 
+local function is_ipv6(pkt)
+   return rd16(pkt.data + o_ethernet_ethertype) == n_ethertype_ipv6
+end
+local function is_ipv4(pkt)
+   return rd16(pkt.data + o_ethernet_ethertype) == n_ethertype_ipv4
+end
+
 local o_ipv4_checksum = constants.o_ipv4_checksum
 local o_ipv4_dscp_and_ecn = constants.o_ipv4_dscp_and_ecn
 local o_ipv4_dst_addr = constants.o_ipv4_dst_addr
@@ -571,12 +578,6 @@ local function from_b4(lwstate, pkt)
    end
 end
 
--- Modify the given packet in-place, and forward it, drop it, or reply with
--- an ICMP or ICMPv6 packet as per the internet draft and configuration policy.
-
--- Check each input device. Handle transmission through the system in the following
--- loops; handle unusual cases (ie, ICMP going through the same interface as it
--- was received from) where they occur.
 function LwAftr:push ()
    local i4, i6 = self.input.v4, self.input.v6
    local o4, o6 = self.output.v4, self.output.v6
@@ -594,27 +595,24 @@ function LwAftr:push ()
    -- packets on the "right" interface.
 
    for _=1,math.min(link.nreadable(i4), link.nwritable(o6)) do
+      -- Encapsulate incoming IPv4 packets from the internet interface.
+      -- Drop anything that's not IPv4.
       local pkt = receive(i4)
-      if debug then print("got a pkt") end
-      -- Keep the ethertype in network byte order
-      local ethertype = rd16(pkt.data + o_ethernet_ethertype)
-
-      if ethertype == n_ethertype_ipv4 then -- Incoming packet from the internet
+      if is_ipv4(pkt) then
          from_inet(self, pkt)
       else
          packet.free(pkt)
-      end -- Silently drop all other types coming from the internet interface
+      end
    end
 
    for _=1,math.min(link.nreadable(i6), link.nwritable(o4)) do
+      -- Decapsulate or hairpin incoming IPv6 packets from the B4
+      -- interface.  Drop anything that's not IPv6.
       local pkt = receive(i6)
-      if debug then print("got a pkt") end
-      local ethertype = rd16(pkt.data + o_ethernet_ethertype)
-      if ethertype == n_ethertype_ipv6 then
-         -- decapsulate iff the source was a b4, and forward/hairpin/ICMPv6 as needed
+      if is_ipv6(pkt) then
          from_b4(self, pkt)
       else
          packet.free(pkt)
-      end -- FIXME: silently drop other types; is this the right thing to do?
+      end
    end
 end

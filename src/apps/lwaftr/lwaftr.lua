@@ -177,12 +177,6 @@ local function decrement_ttl(pkt)
    return new_ttl
 end
 
-local function get_lwAFTR_ipv6(lwstate, binding_entry)
-   local lwaftr_ipv6 = binding_entry[4]
-   if not lwaftr_ipv6 then lwaftr_ipv6 = lwstate.aftr_ipv6_ip end
-   return lwaftr_ipv6
-end
-
 local function binding_lookup_ipv4(lwstate, ipv4_ip, port)
    if debug then
       print(lwdebug.format_ipv4(ipv4_ip), 'port: ', port, string.format("%x", port))

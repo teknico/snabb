@@ -45,6 +45,12 @@ end
 local function is_ipv4(pkt)
    return rd16(pkt.data + o_ethernet_ethertype) == n_ethertype_ipv4
 end
+local function get_ethernet_payload(pkt)
+   return pkt.data + ethernet_header_size
+end
+local function get_ethernet_payload_length(pkt)
+   return pkt.length - ethernet_header_size
+end
 
 local o_ipv4_checksum = constants.o_ipv4_checksum
 local o_ipv4_dscp_and_ecn = constants.o_ipv4_dscp_and_ecn
@@ -312,7 +318,7 @@ local function ipv6_encapsulate(lwstate, pkt, next_hdr_type, ipv6_src, ipv6_dst,
 
    -- As if it were Ethernet decapsulated.
    local offset = ethernet_header_size
-   local payload_length = pkt.length - offset
+   local payload_length = get_ethernet_payload_length(pkt)
    local dscp_and_ecn = pkt.data[offset + o_ipv4_dscp_and_ecn]
    -- Make room at the beginning for IPv6 header.
    packet.shiftright(pkt, ipv6_fixed_header_size)
@@ -321,7 +327,7 @@ local function ipv6_encapsulate(lwstate, pkt, next_hdr_type, ipv6_src, ipv6_dst,
    write_eth_header(pkt.data, ether_src, ether_dst, eth_type)
 
    -- Modify IPv6 header.
-   write_ipv6_header(pkt.data + ethernet_header_size, ipv6_src, ipv6_dst,
+   write_ipv6_header(get_ethernet_payload(pkt), ipv6_src, ipv6_dst,
                      dscp_and_ecn, next_hdr_type, payload_length)
 
    if debug then
@@ -356,7 +362,7 @@ local function icmpv4_incoming(lwstate, pkt)
    if icmp_type == constants.icmpv4_echo_reply or icmp_type == constants.icmpv4_echo_request then
       source_port = ntohs(rd16(pkt.data + icmp_base + constants.o_icmpv4_echo_identifier))
       -- Use the outermost IP header for the destination; it's not repeated in the payload
-      ipv4_dst = rd32(pkt.data + ethernet_header_size + constants.o_ipv4_dst_addr)
+      ipv4_dst = rd32(get_ethernet_payload(pkt) + constants.o_ipv4_dst_addr)
    else
       -- source port is the zeroeth byte of an encapsulated tcp or udp packet
       -- TODO: explicitly check for tcp/udp?

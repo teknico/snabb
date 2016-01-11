@@ -2,6 +2,7 @@ module(..., package.seeall)
 
 local config     = require("core.config")
 local Intel82599 = require("apps.intel.intel_app").Intel82599
+local VirtioNet  = require("apps.virtio_net.virtio_net").VirtioNet
 local lwaftr     = require("apps.lwaftr.lwaftr")
 local basic_apps = require("apps.basic.basic_apps")
 local pcap       = require("apps.pcap.pcap")
@@ -45,6 +46,22 @@ function load_phy(c, conf, v4_nic_name, v4_nic_pci, v6_nic_name, v6_nic_pci)
       vlan=conf.vlan_tagging and conf.v4_vlan_tag,
       macaddr=ethernet:ntop(conf.aftr_mac_inet_side)})
    config.app(c, v6_nic_name, Intel82599, {
+      pciaddr=v6_nic_pci,
+      vlan=conf.vlan_tagging and conf.v4_vlan_tag,
+      macaddr = ethernet:ntop(conf.aftr_mac_b4_side)})
+
+   link_source(c, v4_nic_name..'.tx', v6_nic_name..'.tx')
+   link_sink(c, v4_nic_name..'.rx', v6_nic_name..'.rx')
+end
+
+function load_virt(c, conf, v4_nic_name, v4_nic_pci, v6_nic_name, v6_nic_pci)
+   lwaftr_app(c, conf)
+
+   config.app(c, v4_nic_name, VirtioNet, {
+      pciaddr=v4_nic_pci,
+      vlan=conf.vlan_tagging and conf.v4_vlan_tag,
+      macaddr=ethernet:ntop(conf.aftr_mac_inet_side)})
+   config.app(c, v6_nic_name, VirtioNet, {
       pciaddr=v6_nic_pci,
       vlan=conf.vlan_tagging and conf.v4_vlan_tag,
       macaddr = ethernet:ntop(conf.aftr_mac_b4_side)})

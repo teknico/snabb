@@ -39,6 +39,7 @@ function parse_args(args)
    local opts = { verbosity = 0 }
    local handlers = {}
    function handlers.v () opts.verbosity = opts.verbosity + 1 end
+   function handlers.i () opts.virtio_net = true end
    function handlers.D (arg)
       opts.duration = assert(tonumber(arg), "duration must be a number")
    end
@@ -70,9 +71,10 @@ function parse_args(args)
       end
    end
    function handlers.h() show_usage(0) end
-   lib.dogetopt(args, handlers, "b:c:n:m:vD:h",
+   lib.dogetopt(args, handlers, "b:c:n:m:vD:hi",
       { conf = "c", ["v4-pci"] = "n", ["v6-pci"] = "m",
-        verbose = "v", duration = "D", help = "h" })
+        verbose = "v", duration = "D", help = "h",
+        virtio = "i" })
    return opts, conf_file, v4_pci, v6_pci
 end
 
@@ -81,8 +83,11 @@ function run(args)
    local conf = require('apps.lwaftr.conf').load_lwaftr_config(conf_file)
 
    local c = config.new()
-   setup.load_phy(c, conf, 'inetNic', v4_pci, 'b4sideNic', v6_pci)
-
+   if opts.virtio_net then
+      setup.load_virt(c, conf, 'inetNic', v4_pci, 'b4sideNic', v6_pci)
+   else
+      setup.load_phy(c, conf, 'inetNic', v4_pci, 'b4sideNic', v6_pci)
+   end
    engine.configure(c)
 
    if opts.verbosity >= 2 then

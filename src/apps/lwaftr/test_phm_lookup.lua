@@ -1,12 +1,25 @@
 local ffi = require('ffi')
 local bit = require('bit')
-local hash_i32 = require("apps.lwaftr.podhashmap").hash_i32
-local phm = require("apps.lwaftr.podhashmap").PodHashMap
+local phm = require("apps.lwaftr.podhashmap")
+local stream = require("apps.lwaftr.stream")
 
--- e.g. ./snabb snsh apps/lwaftr/test_phm_lookup1.lua filename
+local function test(rhh, count, active)
+   print('lookup1 speed test (hits, uniform distribution)')
+   print(count..' lookups, '..(active or count)..' active keys')
+   local start = ffi.C.get_time_ns()
+   local result
+   for i = 1, count do
+      if active then i = (i % active) + 1 end
+      result = rhh:lookup(i)
+   end
+   local stop = ffi.C.get_time_ns()
+   local ns = tonumber(stop-start)/count
+   print(ns..' ns/lookup (final result: '..result..')')
+end
+
 local function run(params)
    if #params < 1 or #params > 2 then
-      error('usage: test_phm_lookup1.lua FILENAME [ACTIVE]')
+      error('usage: test_phm_lookup.lua FILENAME [ACTIVE]')
    end
    local filename, active = unpack(params)
    if active then
@@ -15,24 +28,13 @@ local function run(params)
              'active should be a positive integer')
    end
 
-   local rhh = phm.new(ffi.typeof('uint32_t'), ffi.typeof('int32_t[6]'),
-                       hash_i32)
-
+   local key_t, value_t = ffi.typeof('uint32_t'), ffi.typeof('int32_t[6]')
    print('loading saved file '..filename)
-   rhh:load(filename)
+   local input = stream.open_input_byte_stream(filename)
+   local rhh = phm.load(input, key_t, value_t, phm.hash_i32)
 
-   print('lookup1 speed test (hits, uniform distribution)')
-   local start = ffi.C.get_time_ns()
-   local count = rhh.occupancy
-   print(count..' lookups, '..(active or count)..' active keys')
-   local result
-   for i = 1, count do
-      if active then i = (i % active) + 1 end
-      result = rhh:lookup(i)
-   end
-   local stop = ffi.C.get_time_ns()
-   local iter_rate = count/(tonumber(stop-start)/1e9)/1e6
-   print(iter_rate..' million lookups per second (final result: '..result..')')
+   test(rhh, rhh.occupancy, active)
+   test(rhh, rhh.occupancy, active)
 
    print("done")
 end

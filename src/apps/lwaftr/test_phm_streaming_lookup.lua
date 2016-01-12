@@ -1,8 +1,29 @@
 local ffi = require('ffi')
 local bit = require('bit')
-local hash_i32 = require("apps.lwaftr.podhashmap").hash_i32
-local phm = require("apps.lwaftr.podhashmap").PodHashMap
-local pmu = require("lib.pmu")
+local phm = require("apps.lwaftr.podhashmap")
+local stream = require("apps.lwaftr.stream")
+
+local function test(rhh, count, stride, active)
+   print('streaming lookup speed test (hits, uniform distribution)')
+   local streamer = rhh:make_lookup_streamer(stride)
+   print(count..' lookups, '..(active or count)..' active keys')
+   print('batching '..stride..' lookups at a time')
+   local start = ffi.C.get_time_ns()
+   for i = 1, count, stride do
+      local n = math.min(stride, count + 1 - i)
+      for j = 0, n-1 do
+         if active then
+            streamer.entries[j].key = ((i+j) % active) + 1
+         else
+            streamer.entries[j].key = i+j
+         end
+      end
+      streamer:stream()
+   end
+   local stop = ffi.C.get_time_ns()
+   local ns = tonumber(stop-start)/count
+   print(ns..' ns/lookup')
+end
 
 -- e.g. ./snabb snsh apps/lwaftr/test_phm_streaming_lookup.lua foo.phm
 local function run(params)
@@ -23,35 +44,14 @@ local function run(params)
              'active should be a positive integer')
    end
 
-   local rhh = phm.new(ffi.typeof('uint32_t'), ffi.typeof('int32_t[6]'),
-                       hash_i32)
-
+   local key_t, value_t = ffi.typeof('uint32_t'), ffi.typeof('int32_t[6]')
    print('loading saved file '..filename)
-   rhh:load(filename)
-
-   local streamer = rhh:make_lookup_streamer(stride)
+   local input = stream.open_input_byte_stream(filename)
+   local rhh = phm.load(input, key_t, value_t, phm.hash_i32)
 
    print('max displacement: '..rhh.max_displacement)
 
-   print('streaming lookup speed test (hits, uniform distribution)')
-   local start = ffi.C.get_time_ns()
-   local count = rhh.occupancy
-   print(count..' lookups, '..(active or count)..' active keys')
-   print('batching '..stride..' lookups at a time')
-   for i = 1, count, stride do
-      local n = math.min(stride, count + 1 - i)
-      for j = 0, n-1 do
-         if active then
-            streamer.entries[j].key = ((i+j) % active) + 1
-         else
-            streamer.entries[j].key = i+j
-         end
-      end
-      streamer:stream()
-   end
-   local stop = ffi.C.get_time_ns()
-   local iter_rate = count/(tonumber(stop-start)/1e9)/1e6
-   print(iter_rate..' million lookups per second')
+   test(rhh, rhh.occupancy, stride, active)
 
    print("done")
 end

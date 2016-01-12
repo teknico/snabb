@@ -28,8 +28,8 @@ local function run(params)
       end
    end
    local stop = ffi.C.get_time_ns()
-   local iter_rate = count/(tonumber(stop-start)/1e9)/1e6
-   print(iter_rate..' million insertions per second')
+   local ns = tonumber(stop-start)/count
+   print(ns..' ns/insertion')
 
    local max_displacement = rhh.max_displacement
    print('max displacement: '..max_displacement)

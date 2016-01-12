@@ -9,6 +9,7 @@ local function test(rhh, count, stride, active)
    print(count..' lookups, '..(active or count)..' active keys')
    print('batching '..stride..' lookups at a time')
    local start = ffi.C.get_time_ns()
+   local result
    for i = 1, count, stride do
       local n = math.min(stride, count + 1 - i)
       for j = 0, n-1 do
@@ -19,10 +20,11 @@ local function test(rhh, count, stride, active)
          end
       end
       streamer:stream()
+      result = streamer.entries[n-1].value[0]
    end
    local stop = ffi.C.get_time_ns()
    local ns = tonumber(stop-start)/count
-   print(ns..' ns/lookup')
+   print(ns..' ns/lookup (final result: '..result..')')
 end
 
 -- e.g. ./snabb snsh apps/lwaftr/test_phm_streaming_lookup.lua foo.phm

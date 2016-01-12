@@ -10,7 +10,7 @@ local function test(rhh, count, active)
    local result
    for i = 1, count do
       if active then i = (i % active) + 1 end
-      result = rhh:lookup(i)
+      result = rhh:val_at(rhh:lookup(i))[0]
    end
    local stop = ffi.C.get_time_ns()
    local ns = tonumber(stop-start)/count

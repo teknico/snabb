@@ -70,15 +70,24 @@ function gen(count, size)
             | mov Rq(8+i), [rsi + 8*i]
          end
          while to_copy >= 32 do
+            local double_copy = to_copy >= 64 and not tail_mask
+            local inc = double_copy and 64 or 32
             for i = 0, stride-1 do
                | vmovdqu ymm(i), [Rq(8+i)]
                | add Rq(8+i), 32
+               if double_copy then
+                  | vmovdqu ymm(8+i), [Rq(8+i)]
+                  | add Rq(8+i), 32
+               end
             end
             for i = 0, stride-1 do
                | vmovdqu [rdi + i*size], ymm(i)
+               if double_copy then
+                  | vmovdqu [rdi + i*size+32], ymm(8+i)
+               end
             end
-            | add rdi, 32
-            to_copy = to_copy - 32
+            | add rdi, inc
+            to_copy = to_copy - inc
          end
 
          if to_copy > 0 then

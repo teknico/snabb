@@ -58,14 +58,11 @@ function gen(count, size)
          | vmovdqu ymm15, [rax]
       end
 
-      -- Stream in data from up to 8 regions at once.
+      -- Stream in data from up to 16 regions at once.
       while count > 0 do
-         local stride = math.min(count, 8)
+         local stride = math.min(count, 16)
          local to_copy = size
          while to_copy >= 32 do
-            -- Irritatingly there appears to be a limitation on ymm(n)
-            -- and Rq(n) for n >= 8!  Get around it by limiting to
-            -- ymm0-ymm7 and using memory for the indexes.
             for i = 0, stride-1 do
                | mov rax, [rsi + 8*i]
                | vmovdqu ymm(i), [rax]

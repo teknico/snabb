@@ -110,6 +110,14 @@ function load(stream, key_t, value_t, hash_fn)
    map.occupancy_hi = ceil(map.size * map.max_occupancy_rate)
    map.occupancy_lo = floor(map.size * map.min_occupancy_rate)
 
+   -- Try to copy entries into a huge page.
+   local byte_size = ffi.sizeof(map.type, map.size + map.max_displacement + 1)
+   local mem, err = S.mmap(nil, byte_size, 'read, write', 'private, anonymous, hugetlb')
+   if mem then
+      C.memcpy(mem, map.entries, byte_size)
+      map.entries = ffi.cast(ffi.typeof('$*', map.entry_type), mem)
+   end
+
    return map
 end
 

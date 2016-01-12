@@ -34,7 +34,6 @@ local function run(params)
    local rhh = phm.load(input, key_t, value_t, phm.hash_i32)
 
    test(rhh, rhh.occupancy, active)
-   test(rhh, rhh.occupancy, active)
 
    print("done")
 end

@@ -48,7 +48,11 @@ local lwaftr_conf_spec = {
       policy_icmpv6_outgoing=Parser.enum_parser(policies),
       v4_vlan_tag=Parser.parse_vlan_tag,
       v6_vlan_tag=Parser.parse_vlan_tag,
-      vlan_tagging=Parser.parse_boolean
+      vlan_tagging=Parser.parse_boolean,
+      ipv4_ingress_filter=Parser.parse_string,
+      ipv4_egress_filter=Parser.parse_string,
+      ipv6_ingress_filter=Parser.parse_string,
+      ipv6_egress_filter=Parser.parse_string,
    },
    defaults={
       aftr_ipv4_ip=required('aftr_ipv4_ip'),

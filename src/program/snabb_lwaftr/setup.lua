@@ -2,6 +2,7 @@ module(..., package.seeall)
 
 local config     = require("core.config")
 local Intel82599 = require("apps.intel.intel_app").Intel82599
+local PcapFilter = require("apps.packet_filter.pcap_filter").PcapFilter
 local VirtioNet  = require("apps.virtio_net.virtio_net").VirtioNet
 local lwaftr     = require("apps.lwaftr.lwaftr")
 local basic_apps = require("apps.basic.basic_apps")
@@ -13,6 +14,8 @@ local ethernet   = require("lib.protocol.ethernet")
 
 function lwaftr_app(c, conf)
    assert(type(conf) == 'table')
+   local function append(t, elem) table.insert(t, elem) end
+   local function prepend(t, elem) table.insert(t, 1, elem) end
 
    config.app(c, "reassemblerv4", ipv4_apps.Reassembler, {})
    config.app(c, "reassemblerv6", ipv6_apps.Reassembler, {})
@@ -22,10 +25,58 @@ function lwaftr_app(c, conf)
    config.app(c, "fragmenterv6", ipv6_apps.Fragmenter,
               { mtu=conf.ipv6_mtu })
 
-   config.link(c, "reassemblerv4.output -> lwaftr.v4")
-   config.link(c, "reassemblerv6.output -> lwaftr.v6")
-   config.link(c, 'lwaftr.v6 -> fragmenterv6.input')
-   config.link(c, 'lwaftr.v4 -> fragmenterv4.input')
+   local preprocessing_apps_v4  = { "reassemblerv4" }
+   local preprocessing_apps_v6  = { "reassemblerv6" }
+   local postprocessing_apps_v4  = { "fragmenterv4" }
+   local postprocessing_apps_v6  = { "fragmenterv6" }
+
+   if conf.ipv4_ingress_filter then
+      config.app(c, "ingress_filterv4", PcapFilter, { filter = conf.ipv4_ingress_filter })
+      append(preprocessing_apps_v4, "ingress_filterv4")
+   end
+   if conf.ipv6_ingress_filter then
+      config.app(c, "ingress_filterv6", PcapFilter, { filter = conf.ipv6_ingress_filter })
+      append(preprocessing_apps_v6, "ingress_filterv6")
+   end
+   if conf.ipv4_egress_filter then
+      config.app(c, "egress_filterv4", PcapFilter, { filter = conf.ipv4_egress_filter })
+      prepend(postprocessing_apps_v4, "egress_filterv4")
+   end
+   if conf.ipv6_egress_filter then
+      config.app(c, "egress_filterv6", PcapFilter, { filter = conf.ipv6_egress_filter })
+      prepend(postprocessing_apps_v6, "egress_filterv6")
+   end
+
+   set_preprocessors(c, preprocessing_apps_v4, "lwaftr.v4")
+   set_preprocessors(c, preprocessing_apps_v6, "lwaftr.v6")
+   set_postprocessors(c, "lwaftr.v6", postprocessing_apps_v6)
+   set_postprocessors(c, "lwaftr.v4", postprocessing_apps_v4)
+end
+
+local function link_apps(c, apps)
+   for i=1, #apps - 1 do
+      local output, input = "output", "input"
+      local src, dst = apps[i], apps[i+1]
+      if type(src) == "table" then
+         src, output = src["name"], src["output"]
+      end
+      if type(dst) == "table" then
+         dst, input = dst["name"], dst["input"]
+      end
+      config.link(c, ("%s.%s -> %s.%s"):format(src, output, dst, input))
+   end
+end
+
+function set_preprocessors(c, apps, dst)
+   assert(type(apps) == "table")
+   link_apps(c, apps)
+   config.link(c, ("%s.output -> %s"):format(apps[#apps], dst))
+end
+
+function set_postprocessors(c, src, apps)
+   assert(type(apps) == "table")
+   config.link(c, ("%s -> %s.input"):format(src, apps[1]))
+   link_apps(c, apps)
 end
 
 function link_source(c, v4_in, v6_in)

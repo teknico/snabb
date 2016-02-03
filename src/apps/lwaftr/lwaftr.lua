@@ -145,7 +145,7 @@ local function get_icmp_payload(ptr)
 end
 
 local function drop(pkt)
-   pkt.free(pkt)
+   packet.free(pkt)
 end
 
 local transmit_icmpv6_with_rate_limit

@@ -20,8 +20,6 @@ local htons, htonl = lwutil.htons, lwutil.htonl
 local ntohs, ntohl = htons, htonl
 local write_eth_header = lwheader.write_eth_header
 
-local dgram
-
 local function calculate_payload_size(dst_pkt, initial_pkt, l2_size, max_size, config)
    local original_bytes_to_skip = l2_size
    if config.extra_payload_offset then

@@ -82,6 +82,8 @@ o_ipv6_dst_addr = 24
 o_ipv6_frag_offset = 2
 o_ipv6_frag_id = 4
 
+o_icmpv4_msg_type = 0
+o_icmpv4_msg_code = 1
 o_icmpv4_checksum = 2
 o_icmpv4_echo_identifier = 4
 

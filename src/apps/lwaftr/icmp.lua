@@ -134,3 +134,15 @@ function new_icmpv6_packet(from_eth, to_eth, from_ip, to_ip, initial_pkt, l2_siz
    ipv6_header:free()
    return new_pkt
 end
+
+function is_icmpv6(pkt)
+   return rd16(pkt.data + constants.o_ethernet_ethertype) == constants.n_ethertype_ipv6
+      and pkt.data[constants.ethernet_header_size + constants.o_ipv6_next_header] == constants.proto_icmpv6
+end
+
+function is_icmpv6_message(pkt, msg_type, msg_code)
+   local icmp_offset = constants.ethernet_header_size + constants.ipv6_fixed_header_size
+   return is_icmpv6(pkt)
+      and pkt.data[icmp_offset + constants.o_icmpv6_msg_type] == msg_type
+      and pkt.data[icmp_offset + constants.o_icmpv4_msg_code] == msg_code
+end

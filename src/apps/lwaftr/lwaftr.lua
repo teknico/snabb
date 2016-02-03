@@ -599,18 +599,7 @@ function LwAftr:push ()
    local o4, o6 = self.output.v4, self.output.v6
    self.o4, self.o6 = o4, o6
 
-   -- If we are really slammed and can't keep up, packets are going to
-   -- drop one way or another.  The nwritable() check is just to prevent
-   -- us from burning the CPU on packets that we're pretty sure would be
-   -- dropped anyway, so that when we're in an overload situation things
-   -- don't get worse as the traffic goes up.  It's not a fool-proof
-   -- check that we in fact will be able to successfully handle the
-   -- packet, given that the packet might require fragmentation,
-   -- hairpinning, or ICMP error messages, all of which might result in
-   -- transmission of packets on the "other" interface or multiple
-   -- packets on the "right" interface.
-
-   for _=1,math.min(link.nreadable(i4), link.nwritable(o6)) do
+   for _=1,link.nreadable(i4) do
       -- Encapsulate incoming IPv4 packets from the internet interface.
       -- Drop anything that's not IPv4.
       local pkt = receive(i4)
@@ -621,7 +610,7 @@ function LwAftr:push ()
       end
    end
 
-   for _=1,math.min(link.nreadable(i6), link.nwritable(o4)) do
+   for _=1,link.nreadable(i6) do
       -- Decapsulate or hairpin incoming IPv6 packets from the B4
       -- interface.  Drop anything that's not IPv6.
       local pkt = receive(i6)

@@ -80,7 +80,7 @@ function Reassembler:push ()
    local l2_size = self.l2_size
    local ethertype_offset = self.ethertype_offset
 
-   for _=1,math.min(link.nreadable(input), link.nwritable(output)) do
+   for _=1,link.nreadable(input) do
       local pkt = receive(input)
       if is_ipv6(pkt, ethertype_offset) and is_fragment(pkt, l2_size) then
          local frags = self:cache_fragment(pkt)
@@ -128,7 +128,7 @@ function Fragmenter:push ()
    local l2_size, mtu = self.l2_size, self.mtu
    local ethertype_offset = self.ethertype_offset
 
-   for _=1,math.min(link.nreadable(input), link.nwritable(output)) do
+   for _=1,link.nreadable(input) do
       local pkt = receive(input)
       if pkt.length > mtu + l2_size and is_ipv6(pkt, ethertype_offset) then
          -- It's possible that the IPv6 packet has an IPv4 packet as

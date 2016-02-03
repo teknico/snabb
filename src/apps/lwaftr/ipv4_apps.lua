@@ -118,7 +118,7 @@ function Fragmenter:push ()
    local l2_size, mtu = self.l2_size, self.mtu
    local ethertype_offset = self.ethertype_offset
 
-   for _=1,math.min(link.nreadable(input), link.nwritable(output)) do
+   for _=1,link.nreadable(input) do
       local pkt = receive(input)
       if pkt.length > mtu + l2_size and is_ipv4(pkt, ethertype_offset) then
          local status, frags = fragmentv4.fragment(pkt, l2_size, mtu)

@@ -14,7 +14,7 @@ local lib = require("core.lib")
 local ffi = require("ffi")
 
 function show_usage(code)
-   print(require("program.snabb_lwaftr.transient.README_inc"))
+   print(require("program.lwaftr.transient.README_inc"))
    main.exit(code)
 end
 

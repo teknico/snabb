@@ -6,7 +6,7 @@ E= @echo
 #E= @:
 
 snabb-lwaftr:
-	$(Q) (cd ../../; make snabb-lwaftr; ln -sf ../../$@ program/snabb_lwaftr/$@)
+	$(Q) (cd ../../; make snabb-lwaftr; ln -sf ../../$@ program/lwaftr/$@)
 
 snabb-lwaftr-doc: doc/snabb-lwaftr.pdf doc/snabb-lwaftr.html doc/snabb-lwaftr.epub
 

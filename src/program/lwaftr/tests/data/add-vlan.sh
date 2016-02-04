@@ -39,6 +39,9 @@ V4=(
     udp-afteraftr-reassembled-ipv4.pcap
     udp-frominet-3frag-bound.pcap
     udp-frominet-bound.pcap
+    ping-v4.pcap
+    ping-v4-reply.pcap
+    ping-v4-and-data.pcap
 )
 
 V6=(
@@ -86,6 +89,9 @@ V6=(
     udp-afteraftr-ipv6.pcap
     udp-afteraftr-reassembled-ipv6-2frags.pcap
     udp-fromb4-2frags-bound.pcap
+    ping-v6.pcap
+    ping-v6-reply.pcap
+    ping-v6-and-data.pcap
 )
 
 IPV4_TAG=1092 # 0x444

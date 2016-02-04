@@ -1,5 +1,7 @@
 module(..., package.seeall)
 
+local constants = require("apps.lwaftr.constants")
+
 local bit = require("bit")
 local ffi = require("ffi")
 
@@ -53,4 +55,17 @@ local uint64_ptr_t = ffi.typeof('uint64_t*')
 function ipv6_equals(a, b)
    local a, b = ffi.cast(uint64_ptr_t, a), ffi.cast(uint64_ptr_t, b)
    return a[0] == b[0] and a[1] == b[1]
+end
+
+-- Local bindings for constants that are used in the hot path of the
+-- data plane.  Not having them here is a 1-2% performance penalty.
+local o_ethernet_ethertype = constants.o_ethernet_ethertype
+local n_ethertype_ipv4 = constants.n_ethertype_ipv4
+local n_ethertype_ipv6 = constants.n_ethertype_ipv6
+
+function is_ipv6(pkt)
+   return rd16(pkt.data + o_ethernet_ethertype) == n_ethertype_ipv6
+end
+function is_ipv4(pkt)
+   return rd16(pkt.data + o_ethernet_ethertype) == n_ethertype_ipv4
 end

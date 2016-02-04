@@ -5,7 +5,7 @@ local stream = require("apps.lwaftr.stream")
 local binding_table = require("apps.lwaftr.binding_table")
 
 function show_usage(code)
-   print(require("program.snabb_lwaftr.compile_binding_table.README_inc"))
+   print(require("program.lwaftr.compile_binding_table.README_inc"))
    main.exit(code)
 end
 

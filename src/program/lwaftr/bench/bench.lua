@@ -4,10 +4,10 @@ local app = require("core.app")
 local config = require("core.config")
 local lib = require("core.lib")
 local csv_stats  = require("lib.csv_stats")
-local setup = require("program.snabb_lwaftr.setup")
+local setup = require("program.lwaftr.setup")
 
 function show_usage(code)
-   print(require("program.snabb_lwaftr.bench.README_inc"))
+   print(require("program.lwaftr.bench.README_inc"))
    main.exit(code)
 end
 

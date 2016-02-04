@@ -33,37 +33,34 @@ function main ()
    zone("startup")
    require "lib.lua.strict"
    initialize()
-   local args = parse_command_line()
-   local program = programname(args[1])
-   if program == 'snabb' then
-      -- Print usage with exit status 0 if help requested
-      if args[2] == '-h' or args[2] == '--help' then
-         usage(0)
-      end
-      -- Print usage with exit status 1 if no arguments supplied
-      if #args == 1 then
-         usage(1)
-      end
-      -- Strip 'snabb' and use next argument as program name
-      table.remove(args, 1)
-   end
-   program = select_program(program, args)
+   local program, args = select_program(parse_command_line())
    if not lib.have_module(modulename(program)) then
       print("unsupported program: "..program:gsub("_", "-"))
-      print()
-      print("Rename this executable (cp, mv, ln) to choose a supported program:")
-      print("  snabb "..(require("programs_inc"):gsub("\n", " ")))
-      os.exit(1)
+      usage(1)
    else
       require(modulename(program)).run(args)
    end
 end
 
--- If no more arguments return program as program name
--- If not, use the next argument as program name
-function select_program (program, args)
-   if not args or #args == 0 then return program end
-   return string.gsub(table.remove(args, 1), "-", "_")
+-- Take the program name from the first argument, unless the first
+-- argument is "snabb", in which case pop it off, handle any options
+-- passed to snabb itself, and use the next argument.
+function select_program (args)
+   local program = programname(table.remove(args, 1))
+   if program == 'snabb' then
+      while #args > 0 and args[1]:match('^-') do
+         local opt = table.remove(args, 1)
+         if opt == '-h' or opt == '--help' then
+            usage(0)
+         else
+            print("unrecognized option: "..opt)
+            usage(1)
+         end
+      end
+      if #args == 0 then usage(1) end
+      program = programname(table.remove(args, 1))
+   end
+   return program, args
 end
 
 function usage (status)
@@ -84,6 +81,7 @@ function programname (name)
    return name:gsub("^.*/", "")
               :gsub("-[0-9.]+[-%w]+$", "")
               :gsub("-", "_")
+              :gsub("^snabb_", "")
 end
 
 function modulename (program)
@@ -132,21 +130,21 @@ function selftest ()
       "Incorrect program name parsing")
    assert(programname("/bin/snabb-1.0-alpha2") == "snabb",
       "Incorrect program name parsing")
-   assert(programname("/bin/snabb-nfv") == "snabb_nfv",
+   assert(programname("/bin/snabb-nfv") == "nfv",
       "Incorrect program name parsing")
-   assert(programname("/bin/snabb-nfv-1.0") == "snabb_nfv",
+   assert(programname("/bin/nfv-1.0") == "nfv",
       "Incorrect program name parsing")
    assert(modulename("nfv-sync-master-2.0") == "program.nfv_sync_master.nfv_sync_master",
       "Incorrect module name parsing")
    local pn = programname
    -- snabb foo => foo
-   assert(select_program(pn'snabb', { pn'foo' }) == "foo",
+   assert(select_program({ 'foo' }) == "foo",
       "Incorrect program name selected")
-   -- snabb-foo => snabb_foo
-   assert(select_program(pn'snabb-foo', { }) == "snabb_foo",
+   -- snabb-foo => foo
+   assert(select_program({ 'snabb-foo' }) == "foo",
       "Incorrect program name selected")
-   -- snabb snabb-foo => snabb_foo
-   assert(select_program(pn'snabb', { pn'snabb-foo' }) == "snabb_foo",
+   -- snabb snabb-foo => foo
+   assert(select_program({ 'snabb', 'snabb-foo' }) == "foo",
       "Incorrect program name selected")
 end
 

@@ -3,10 +3,10 @@ module(..., package.seeall)
 local app = require("core.app")
 local config = require("core.config")
 local lib = require("core.lib")
-local setup = require("program.snabb_lwaftr.setup")
+local setup = require("program.lwaftr.setup")
 
 function show_usage(code)
-   print(require("program.snabb_lwaftr.check.README_inc"))
+   print(require("program.lwaftr.check.README_inc"))
    main.exit(code)
 end
 

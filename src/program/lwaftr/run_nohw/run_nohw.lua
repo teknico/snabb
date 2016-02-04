@@ -40,7 +40,7 @@ local function parse_args(args)
          inet_if = arg
       end;
       h = function (arg)
-		print(require("program.snabb_lwaftr.run_nohw.README_inc"))
+		print(require("program.lwaftr.run_nohw.README_inc"))
 		main.exit(0)
 	  end;
    }

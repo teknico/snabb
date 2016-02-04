@@ -4,10 +4,10 @@ local S          = require("syscall")
 local config     = require("core.config")
 local csv_stats  = require("lib.csv_stats")
 local lib        = require("core.lib")
-local setup      = require("program.snabb_lwaftr.setup")
+local setup      = require("program.lwaftr.setup")
 
 local function show_usage(exit_code)
-   print(require("program.snabb_lwaftr.run.README_inc"))
+   print(require("program.lwaftr.run.README_inc"))
    if exit_code then main.exit(exit_code) end
 end
 

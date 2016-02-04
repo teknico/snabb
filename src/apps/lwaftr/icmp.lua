@@ -16,6 +16,7 @@ local ffi = require("ffi")
 local band, bnot = bit.band, bit.bnot
 local C = ffi.C
 local rd16, wr16, wr32 = lwutil.rd16, lwutil.wr16, lwutil.wr32
+local is_ipv4, is_ipv6 = lwutil.is_ipv4, lwutil.is_ipv6
 local get_ihl_from_offset = lwutil.get_ihl_from_offset
 local htons, htonl = lwutil.htons, lwutil.htonl
 local ntohs, ntohl = htons, htonl
@@ -95,7 +96,7 @@ function new_icmpv4_packet(from_eth, to_eth, from_ip, to_ip, initial_pkt, l2_siz
 end
 
 function is_icmpv4(pkt)
-   return rd16(pkt.data + constants.o_ethernet_ethertype) == constants.n_ethertype_ipv4
+   return is_ipv4(pkt)
       and pkt.data[constants.ethernet_header_size + constants.o_ipv4_proto] == constants.proto_icmp
 end
 
@@ -136,7 +137,7 @@ function new_icmpv6_packet(from_eth, to_eth, from_ip, to_ip, initial_pkt, l2_siz
 end
 
 function is_icmpv6(pkt)
-   return rd16(pkt.data + constants.o_ethernet_ethertype) == constants.n_ethertype_ipv6
+   return is_ipv6(pkt)
       and pkt.data[constants.ethernet_header_size + constants.o_ipv6_next_header] == constants.proto_icmpv6
 end
 

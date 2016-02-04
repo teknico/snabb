@@ -55,17 +55,18 @@ function lwaftr_app(c, conf)
       prepend(postprocessing_apps_v6, "egress_filterv6")
    end
 
-   set_preprocessors(c, preprocessing_apps_v6, "ndp.south")
-   config.link(c, "ndp.north -> icmpechov6.south")
-   config.link(c, "icmpechov6.north -> lwaftr.v6")
-   config.link(c, "lwaftr.v6 -> icmpechov6.north")
-   config.link(c, "icmpechov6.south -> ndp.north")
-   set_postprocessors(c, "ndp.south", postprocessing_apps_v6)
+   append(preprocessing_apps_v4,   { name = "icmpechov4", input = "south", output = "north" })
+   prepend(postprocessing_apps_v4, { name = "icmpechov4", input = "north", output = "south" })
 
-   set_preprocessors(c, preprocessing_apps_v4, "icmpechov4.south")
-   config.link(c, "icmpechov4.north -> lwaftr.v4")
-   config.link(c, "lwaftr.v4 -> icmpechov4.north")
-   set_postprocessors(c, "icmpechov4.south", postprocessing_apps_v4)
+   append(preprocessing_apps_v6,   { name = "ndp",        input = "south", output = "north" })
+   append(preprocessing_apps_v6,   { name = "icmpechov6", input = "south", output = "north" })
+   prepend(postprocessing_apps_v6, { name = "icmpechov6", input = "north", output = "south" })
+   prepend(postprocessing_apps_v6, { name = "ndp",        input = "north", output = "south" })
+
+   set_preprocessors(c, preprocessing_apps_v4, "lwaftr.v4")
+   set_preprocessors(c, preprocessing_apps_v6, "lwaftr.v6")
+   set_postprocessors(c, "lwaftr.v6", postprocessing_apps_v6)
+   set_postprocessors(c, "lwaftr.v4", postprocessing_apps_v4)
 end
 
 local function link_apps(c, apps)
@@ -85,12 +86,20 @@ end
 function set_preprocessors(c, apps, dst)
    assert(type(apps) == "table")
    link_apps(c, apps)
-   config.link(c, ("%s.output -> %s"):format(apps[#apps], dst))
+   local last_app, output = apps[#apps], "output"
+   if type(last_app) == "table" then
+      last_app, output = last_app.name, last_app.output
+   end
+   config.link(c, ("%s.%s -> %s"):format(last_app, output, dst))
 end
 
 function set_postprocessors(c, src, apps)
    assert(type(apps) == "table")
-   config.link(c, ("%s -> %s.input"):format(src, apps[1]))
+   local first_app, input = apps[1], "input"
+   if type(first_app) == "table" then
+      first_app, input = first_app.name, first_app.input
+   end
+   config.link(c, ("%s -> %s.%s"):format(src, first_app, input))
    link_apps(c, apps)
 end
 

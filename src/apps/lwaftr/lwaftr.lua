@@ -206,7 +206,7 @@ function LwAftr:new(conf)
    o.aftr_ipv6_ip = conf.aftr_ipv6_ip
    o.aftr_mac_b4_side = conf.aftr_mac_b4_side
    o.aftr_mac_inet_side = conf.aftr_mac_inet_side
-   o.b4_mac = conf.b4_mac or ethernet:pton("00:00:00:00:00:00")
+   o.next_hop6_mac = conf.next_hop6_mac or ethernet:pton("00:00:00:00:00:00")
    o.hairpinning = conf.hairpinning
    o.icmpv6_rate_limiter_n_packets = conf.icmpv6_rate_limiter_n_packets
    o.icmpv6_rate_limiter_n_seconds = conf.icmpv6_rate_limiter_n_seconds
@@ -296,7 +296,7 @@ local function icmp_b4_lookup_failed(lwstate, pkt, to_ip)
    local icmp_config = {type = constants.icmpv6_dst_unreachable,
                         code = constants.icmpv6_failed_ingress_egress_policy,
                        }
-   local b4fail_icmp = icmp.new_icmpv6_packet(lwstate.aftr_mac_b4_side, lwstate.b4_mac,
+   local b4fail_icmp = icmp.new_icmpv6_packet(lwstate.aftr_mac_b4_side, lwstate.next_hop6_mac,
                                               lwstate.aftr_ipv6_ip, to_ip, pkt,
                                               ethernet_header_size, icmp_config)
    transmit_icmpv6_with_rate_limit(lwstate.o6, b4fail_icmp)
@@ -401,7 +401,7 @@ local function icmpv4_incoming(lwstate, pkt)
    -- Otherwise, the packet MUST be forwarded
    local next_hdr = proto_ipv4
    return ipv6_encapsulate(lwstate, pkt, next_hdr, ipv6_src, ipv6_dst,
-                           lwstate.aftr_mac_b4_side, lwstate.b4_mac)
+                           lwstate.aftr_mac_b4_side, lwstate.next_hop6_mac)
 end
 
 -- The incoming packet is a complete one with ethernet headers.
@@ -439,7 +439,7 @@ local function from_inet(lwstate, pkt)
    end
 
    local ether_src = lwstate.aftr_mac_b4_side
-   local ether_dst = lwstate.b4_mac -- FIXME: this should probaby use NDP
+   local ether_dst = lwstate.next_hop6_mac
 
    -- Do not encapsulate packets that now have a ttl of zero or wrapped around
    local ttl = decrement_ttl(pkt)
@@ -569,7 +569,7 @@ local function from_b4(lwstate, pkt)
       if lwstate.hairpinning and ipv4_in_binding_table(lwstate, ipv4_dst_ip) then
          -- Remove IPv6 header.
          packet.shiftleft(pkt, ipv6_fixed_header_size)
-         write_eth_header(pkt.data, lwstate.b4_mac, lwstate.aftr_mac_b4_side,
+         write_eth_header(pkt.data, lwstate.next_hop6_mac, lwstate.aftr_mac_b4_side,
                           n_ethertype_ipv4)
          -- TODO:  refactor so this doesn't actually seem to be from the internet?
          return from_inet(lwstate, pkt)

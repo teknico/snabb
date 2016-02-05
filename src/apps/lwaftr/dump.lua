@@ -33,7 +33,7 @@ end
 function dump_configuration(lwstate)
    print("Dump configuration")
    local result = {}
-   local etharr = set('aftr_mac_b4_side', 'aftr_mac_inet_side', 'b4_mac', 'inet_mac')
+   local etharr = set('aftr_mac_b4_side', 'aftr_mac_inet_side', 'next_hop6_mac', 'inet_mac')
    local ipv4arr = set('aftr_ipv4_ip')
    local ipv6arr = set('aftr_ipv6_ip')
    local val

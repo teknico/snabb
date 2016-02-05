@@ -28,7 +28,7 @@ function lwaftr_app(c, conf)
               { mtu=conf.ipv6_mtu })
    config.app(c, "ndp", ipv6_apps.NDP,
               { src_ipv6 = conf.aftr_ipv6_ip, src_eth = conf.aftr_mac_b4_side,
-                dst_eth = conf.b4_mac, dst_ipv6 = conf.next_hop_ipv6_addr,
+                dst_eth = conf.next_hop6_mac, dst_ipv6 = conf.next_hop_ipv6_addr,
                 all_ipv6_addrs = conf.preloaded_binding_table:get_br_addresses() })
 
    local preprocessing_apps_v4  = { "reassemblerv4" }

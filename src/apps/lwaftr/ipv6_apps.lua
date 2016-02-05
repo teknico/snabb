@@ -184,7 +184,7 @@ function NDP:push()
          if not self.dst_eth and ndp.is_solicited_neighbor_advertisement(p) then
             local dst_ethernet = ndp.get_dst_ethernet(p, {self.conf.dst_ipv6})
             if dst_ethernet then
-               self.conf.dst_eth = dst_ethernet
+               self.dst_eth = dst_ethernet
             end
             packet.free(p)
          elseif ndp.is_neighbor_solicitation_for_ips(p, self.all_local_ipv6_ips) then
@@ -203,11 +203,11 @@ function NDP:push()
 
    for _=1,link.nreadable(inorth) do
       local p = receive(inorth)
-      if not self.conf.dst_eth then
+      if not self.dst_eth then
          -- drop all southbound packets until the next hop's ethernet address is known
           packet.free(p)
       else
-          ndp.set_dst_ethernet(p, self.conf.dst_eth)
+          ndp.set_dst_ethernet(p, self.dst_eth)
           transmit(osouth, p)
       end
    end

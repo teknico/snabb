@@ -24,7 +24,7 @@ local band, bor, bnot = bit.band, bit.bor, bit.bnot
 local rshift, lshift = bit.rshift, bit.lshift
 local cast = ffi.cast
 local receive, transmit = link.receive, link.transmit
-local rd16, wr16, rd32 = lwutil.rd16, lwutil.wr16, lwutil.rd32
+local rd16, wr16, rd32, ipv6_equals = lwutil.rd16, lwutil.wr16, lwutil.rd32, lwutil.ipv6_equals
 local get_ihl_from_offset = lwutil.get_ihl_from_offset
 local htons, htonl = lwutil.htons, lwutil.htonl
 local ntohs, ntohl = htons, htonl
@@ -271,12 +271,6 @@ end
 
 local function ipv4_in_binding_table(lwstate, ip)
    return lwstate.binding_table:is_managed_ipv4_address(ip)
-end
-
-local uint64_ptr_t = ffi.typeof('uint64_t*')
-local function ipv6_equals(a, b)
-   local a, b = ffi.cast(uint64_ptr_t, a), ffi.cast(uint64_ptr_t, b)
-   return a[0] == b[0] and a[1] == b[1]
 end
 
 local function in_binding_table(lwstate, ipv6_src_ip, ipv6_dst_ip, ipv4_src_ip, ipv4_src_port)

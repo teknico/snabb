@@ -32,7 +32,7 @@ function lwaftr_app(c, conf)
                 all_ipv6_addrs = conf.preloaded_binding_table:get_br_addresses() })
 
    local preprocessing_apps_v4  = { "reassemblerv4" }
-   local preprocessing_apps_v6  = { "reassemblerv6"}
+   local preprocessing_apps_v6  = { "reassemblerv6" }
    local postprocessing_apps_v4  = { "fragmenterv4" }
    local postprocessing_apps_v6  = { "fragmenterv6" }
 

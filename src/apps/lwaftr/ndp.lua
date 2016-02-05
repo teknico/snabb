@@ -24,11 +24,13 @@ local checksum = require("lib.checksum")
 local ffi = require("ffi")
 
 local C = ffi.C
-local rd16, wr16, wr32 = lwutil.rd16, lwutil.wr16, lwutil.wr32
+local rd16, wr16, wr32, ipv6_equals = lwutil.rd16, lwutil.wr16, lwutil.wr32, lwutil.ipv6_equals
 
 local option_source_link_layer_address = 1
 local option_target_link_layer_address = 2
 local eth_ipv6_size = constants.ethernet_header_size + constants.ipv6_fixed_header_size
+local o_icmp_target_offset = 8
+local o_icmp_first_option = 24
 
 -- Cache constants
 local ipv6_pseudoheader_size = constants.ipv6_pseudoheader_size
@@ -52,9 +54,11 @@ ipv6_unspecified_addr = ipv6:pton("0::0") -- aka ::/128
 ipv6_solicited_multicast = ipv6:pton("ff02:0000:0000:0000:0000:0001:ff00:00")
 
 
--- Given a pointer to 40 bytes representing an IPv6 header,
--- calculate the checksum the pseudo-header would have if
--- the pseudo-header werer actually constructed.
+-- Pseudo-header:
+-- 32 bytes src and dst addresses
+-- 4 bytes content length, network byte order
+--   (2 0 bytes and then 2 possibly-0 content length bytes in practice)
+-- three zero bytes, then the next_header byte
 local _scratch_pseudoheader = ffi.new('uint8_t[?]', ipv6_pseudoheader_size)
 local function checksum_pseudoheader_from_header(ipv6_fixed_header)
    local ph_size = ipv6_pseudoheader_size
@@ -84,13 +88,32 @@ end
 
 -- The relevant byte is:
 -- [ R S O 0 0 0 0 0 0 ], where S = solicited
+-- Format:
+-- 1 byte type, 1 byte code, 2 bytes checksum
+-- RSO + 29 reserved bits.
+-- Then target address (16 bytes) and possibly options.
 local function is_solicited_na(pkt)
-   local offset = eth_ipv6_size + 4
-   return bit.band(0x40, pkt.data[offset]) == 0x40
+   local o_rso_bits = 4
+   local offset = eth_ipv6_size + o_rso_bits
+   local sol_bit = 0x40
+   return bit.band(sol_bit, pkt.data[offset]) == sol_bit
 end
 
+
+--[[ All NDP messages are >= 8 bytes. Router solicitation is the shortest:
+      0                   1                   2                   3
+      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     |     Type      |     Code      |          Checksum             |
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     |                            Reserved                           |
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     |   Options ...
+     +-+-+-+-+-+-+-+-+-+-+-+-
+--]]
 function is_ndp(pkt)
-   if pkt.length > 57 and
+   local min_ndp_len = eth_ipv6_size + 8
+   if pkt.length >= min_ndp_len and
       eth_next_is_ipv6(pkt) and
       ipv6_next_is_icmp6(pkt)
    then
@@ -119,22 +142,24 @@ end
 -- one of the listed addresses, rather than an arbitrary one.
 function is_neighbor_solicitation_for_ips(pkt, local_ips)
    if not is_neighbor_solicitation(pkt) then return false end
-   -- The 'target address' field
-   local target_offset = eth_ipv6_size + 8
+   local target_offset = eth_ipv6_size + o_icmp_target_offset
    for i=1,#local_ips do
-      if C.memcmp(local_ips[i], pkt.data + target_offset, 16) == 0 then
+      if ipv6_equals(local_ips[i], pkt.data + target_offset) then
          return true
        end
    end
    return false
 end
 
+-- The option format is, for ethernet networks:
+-- 1 byte option type, 1 byte option length (in chunks of 8 bytes)
+-- 6 bytes MAC address
 function get_dst_ethernet(pkt, target_ipv6_addrs)
    if pkt == nil or target_ipv6_addrs == nil then return false end
-   local na_addr_offset = eth_ipv6_size + 8
+   local na_addr_offset = eth_ipv6_size + o_icmp_target_offset
    for i=1,#target_ipv6_addrs do
-      if C.memcmp(target_ipv6_addrs[i], pkt.data + na_addr_offset, 16) == 0 then
-         local na_option_offset = eth_ipv6_size + 24
+      if ipv6_equals(target_ipv6_addrs[i], pkt.data + na_addr_offset) then
+         local na_option_offset = eth_ipv6_size + o_icmp_first_option
          if pkt.data[na_option_offset] == option_target_link_layer_address then
             return pkt.data + na_option_offset + 2
          end
@@ -153,7 +178,7 @@ local function write_ndp(pkt, local_eth, target_addr, i_type, flags, option_type
    ffi.copy(pkt.data + 8, target_addr, 16)
 
    -- The link layer address SHOULD or MUST be set, so set it
-   pkt.data[24] = option_type
+   pkt.data[o_icmp_first_option] = option_type
    pkt.data[25] = 1 -- this option is one 8-octet chunk long
    ffi.copy(pkt.data + 26, local_eth, 6)
    pkt.length = 32
@@ -224,10 +249,10 @@ local function form_sna(local_eth, local_ipv6, is_router, soliciting_pkt)
    local src_addr_offset = ethernet_header_size + o_ipv6_src_addr
    local invoking_src_addr = soliciting_pkt.data + src_addr_offset
    local dst_ipv6
-   if C.memcmp(invoking_src_addr, ipv6_unspecified_addr, 16) ~= 0 then
-      dst_ipv6 = invoking_src_addr
-   else
+   if ipv6_equals(invoking_src_addr, ipv6_unspecified_addr) then
       dst_ipv6 = ipv6_all_nodes_local_segment_addr
+   else
+      dst_ipv6 = invoking_src_addr
    end
    local i = ipv6:new({ hop_limit = hop_limit,
                         next_header = proto_icmpv6,
@@ -272,7 +297,7 @@ end
 
 -- Each 1 added to length represents an 8 octet chunk.
 local function option_lengths_are_nonzero(pkt)
-   local start = eth_ipv6_size + 24
+   local start = eth_ipv6_size + o_icmp_first_option
    while start < pkt.length do
       local cur_option_length = pkt.data[start + 1]
       if cur_option_length == 0 then return false end
@@ -290,7 +315,7 @@ local function ip_dst_is_solicited_node_multicast_address(pkt)
 end
 
 local function has_src_link_layer_address_option(pkt)
-   local start = eth_ipv6_size + 24
+   local start = eth_ipv6_size + o_icmp_first_option
    while start < pkt.length do
       local cur_option_length = pkt.data[start + 1]
       local cur_option_type = pkt.data[start]
@@ -335,7 +360,7 @@ local function is_valid_ns(pkt)
    if target_address_is_multicast(pkt) then return false end
    if not option_lengths_are_nonzero(pkt) then return false end
    local src_addr = pkt.data + ehs + o_ipv6_src_addr
-   if C.memcmp(ipv6_unspecified_addr, src_addr, 16) == 0 then
+   if ipv6_equals(ipv6_unspecified_addr, src_addr) then
       if ip_dst_is_solicited_node_multicast_address(pkt) then return false end
       if has_src_link_layer_address_option(pkt) then return false end
    end
@@ -364,8 +389,6 @@ function selftest()
    set_dst_ethernet(nsp, lmac) -- Not a meaningful thing to do, just a test
    
    local sol_na = form_nsolicitation_reply(lmac, lip, nsp)
-   -- In practice, get_dst_ethernet would be run on local IP addresses
-   -- but this allows re-using a test packet from above...
    get_dst_ethernet(sol_na, {rip})
    assert(sol_na, "an na packet should have been formed")
    assert(is_ndp(sol_na), "sol_na must be ndp!")

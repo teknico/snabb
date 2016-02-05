@@ -37,5 +37,6 @@ function run(args)
    csv:add_app('sinkv6', { 'input' }, { input='Encapsulation' })
    csv:activate()
 
+   app.busywait = true
    app.main({duration=opts.duration})
 end

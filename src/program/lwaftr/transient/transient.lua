@@ -129,5 +129,6 @@ function run(args)
                   { rx=stream.name..' TX', tx=stream.name..' RX' })
    end
    csv:activate()
+   engine.busywait = true
    engine.main({duration=opts.duration*((opts.bitrate/opts.step)*2+1)})
 end

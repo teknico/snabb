@@ -3,13 +3,18 @@ module(..., package.seeall)
 local constants = require("apps.lwaftr.constants")
 local fragmentv4 = require("apps.lwaftr.fragmentv4")
 local lwutil = require("apps.lwaftr.lwutil")
+local icmp = require("apps.lwaftr.icmp")
 
+local ethernet = require("lib.protocol.ethernet")
+local ipv4 = require("lib.protocol.ipv4")
+local checksum = require("lib.checksum")
 local packet = require("core.packet")
 local bit = require("bit")
 local ffi = require("ffi")
 
 local receive, transmit = link.receive, link.transmit
-local rd16 = lwutil.rd16
+local rd16, wr16, rd32, wr32 = lwutil.rd16, lwutil.wr16, lwutil.rd32, lwutil.wr32
+local get_ihl_from_offset, htons = lwutil.get_ihl_from_offset, lwutil.htons
 local is_fragment = fragmentv4.is_fragment
 
 local n_ethertype_ipv4 = constants.n_ethertype_ipv4
@@ -17,18 +22,27 @@ local o_ipv4_identification = constants.o_ipv4_identification
 local o_ipv4_src_addr = constants.o_ipv4_src_addr
 local o_ipv4_dst_addr = constants.o_ipv4_dst_addr
 
+local ethernet_header_size = constants.ethernet_header_size
+local o_ipv4_ver_and_ihl = ethernet_header_size + constants.o_ipv4_ver_and_ihl
+local o_ipv4_checksum = ethernet_header_size + constants.o_ipv4_checksum
+local o_icmpv4_msg_type_sans_ihl = ethernet_header_size + constants.o_icmpv4_msg_type
+local o_icmpv4_checksum_sans_ihl = ethernet_header_size + constants.o_icmpv4_checksum
+local icmpv4_echo_request = constants.icmpv4_echo_request
+local icmpv4_echo_reply = constants.icmpv4_echo_reply
+
 Reassembler = {}
 Fragmenter = {}
+ICMPEcho = {}
 
 function Reassembler:new(conf)
    local o = setmetatable({}, {__index=Reassembler})
    o.conf = conf
 
    if conf.vlan_tagging then
-      o.l2_size = constants.ethernet_header_size + 4
+      o.l2_size = ethernet_header_size + 4
       o.ethertype_offset = constants.o_ethernet_ethertype + 4
    else
-      o.l2_size = constants.ethernet_header_size
+      o.l2_size = ethernet_header_size
       o.ethertype_offset = constants.o_ethernet_ethertype
    end
    o.fragment_cache = {}
@@ -102,10 +116,10 @@ function Fragmenter:new(conf)
    o.mtu = assert(conf.mtu)
 
    if conf.vlan_tagging then
-      o.l2_size = constants.ethernet_header_size + 4
+      o.l2_size = ethernet_header_size + 4
       o.ethertype_offset = constants.o_ethernet_ethertype + 4
    else
-      o.l2_size = constants.ethernet_header_size
+      o.l2_size = ethernet_header_size
       o.ethertype_offset = constants.o_ethernet_ethertype
    end
 
@@ -132,5 +146,60 @@ function Fragmenter:push ()
       else
          transmit(output, pkt)
       end
+   end
+end
+
+function ICMPEcho:new(conf)
+   local addresses = {}
+   if conf.address then
+      addresses[rd32(conf.address)] = true
+   end
+   if conf.addresses then
+      for _, v in ipairs(conf.addresses) do
+         addresses[rd32(v)] = true
+      end
+   end
+   return setmetatable({addresses = addresses}, {__index = ICMPEcho})
+end
+
+function ICMPEcho:push()
+   local l_in, l_out, l_reply = self.input.south, self.output.north, self.output.south
+
+   for _ = 1, math.min(link.nreadable(l_in), link.nwritable(l_out)) do
+      local out, pkt = l_out, receive(l_in)
+
+      if icmp.is_icmpv4_message(pkt, icmpv4_echo_request, 0) then
+         local pkt_ipv4 = ipv4:new_from_mem(pkt.data + ethernet_header_size,
+                                            pkt.length - ethernet_header_size)
+         local pkt_ipv4_dst = rd32(pkt_ipv4:dst())
+         if self.addresses[pkt_ipv4_dst] then
+            ethernet:new_from_mem(pkt.data, ethernet_header_size):swap()
+
+            -- Swap IP source/destination
+            pkt_ipv4:dst(pkt_ipv4:src())
+            wr32(pkt_ipv4:src(), pkt_ipv4_dst)
+
+            -- Change ICMP message type
+            local ihl = get_ihl_from_offset(pkt, o_ipv4_ver_and_ihl)
+            pkt.data[o_icmpv4_msg_type_sans_ihl + ihl] = icmpv4_echo_reply
+
+            -- Recalculate checksums
+            wr16(pkt.data + o_icmpv4_checksum_sans_ihl + ihl, 0)
+            local icmp_offset = ethernet_header_size + ihl
+            local csum = checksum.ipsum(pkt.data + icmp_offset, pkt.length - icmp_offset, 0)
+            wr16(pkt.data + o_icmpv4_checksum_sans_ihl + ihl, htons(csum))
+            wr16(pkt.data + o_ipv4_checksum, 0)
+            pkt_ipv4:checksum()
+
+            out = l_reply
+         end
+      end
+
+      transmit(out, pkt)
+   end
+
+   l_in, l_out = self.input.north, self.output.south
+   for _ = 1, math.min(link.nreadable(l_in), link.nwritable(l_out)) do
+      transmit(l_out, receive(l_in))
    end
 end

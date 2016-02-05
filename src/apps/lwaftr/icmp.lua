@@ -15,10 +15,22 @@ local ffi = require("ffi")
 
 local band, bnot = bit.band, bit.bnot
 local C = ffi.C
-local wr16, wr32 = lwutil.wr16, lwutil.wr32
+local rd16, wr16, wr32 = lwutil.rd16, lwutil.wr16, lwutil.wr32
+local is_ipv4, is_ipv6 = lwutil.is_ipv4, lwutil.is_ipv6
+local get_ihl_from_offset = lwutil.get_ihl_from_offset
 local htons, htonl = lwutil.htons, lwutil.htonl
 local ntohs, ntohl = htons, htonl
 local write_eth_header = lwheader.write_eth_header
+
+local proto_icmp = constants.proto_icmp
+local proto_icmpv6 = constants.proto_icmpv6
+local o_ipv4_proto = constants.ethernet_header_size + constants.o_ipv4_proto
+local o_ipv4_ver_and_ihl = constants.ethernet_header_size + constants.o_ipv4_ver_and_ihl
+local o_icmpv4_msg_type_sans_ihl = constants.ethernet_header_size + constants.o_icmpv4_msg_type
+local o_icmpv4_msg_code_sans_ihl = constants.ethernet_header_size + constants.o_icmpv4_msg_code
+local o_ipv6_next_header = constants.ethernet_header_size + constants.o_ipv6_next_header
+local o_icmpv6_msg_type = constants.ethernet_header_size + constants.ipv6_fixed_header_size + constants.o_icmpv6_msg_type
+local o_icmpv6_msg_code = constants.ethernet_header_size + constants.ipv6_fixed_header_size + constants.o_icmpv6_msg_code
 
 local function calculate_payload_size(dst_pkt, initial_pkt, l2_size, max_size, config)
    local original_bytes_to_skip = l2_size
@@ -93,6 +105,20 @@ function new_icmpv4_packet(from_eth, to_eth, from_ip, to_ip, initial_pkt, l2_siz
    return new_pkt
 end
 
+function is_icmpv4(pkt)
+   return is_ipv4(pkt) and pkt.data[o_ipv4_proto] == proto_icmp
+end
+
+function is_icmpv4_message(pkt, msg_type, msg_code)
+   if is_icmpv4(pkt) then
+      local ihl = get_ihl_from_offset(pkt, o_ipv4_ver_and_ihl)
+      return pkt.data[o_icmpv4_msg_type_sans_ihl + ihl] == msg_type
+         and pkt.data[o_icmpv4_msg_code_sans_ihl + ihl] == msg_code
+   else
+      return false
+   end
+end
+
 function new_icmpv6_packet(from_eth, to_eth, from_ip, to_ip, initial_pkt, l2_size, config)
    local new_pkt = packet.allocate()
    local dgram = to_datagram(new_pkt)
@@ -116,4 +142,13 @@ function new_icmpv6_packet(from_eth, to_eth, from_ip, to_ip, initial_pkt, l2_siz
 
    ipv6_header:free()
    return new_pkt
+end
+
+function is_icmpv6(pkt)
+   return is_ipv6(pkt) and pkt.data[o_ipv6_next_header] == proto_icmpv6
+end
+
+
+function is_icmpv6_message(pkt, msg_type, msg_code)
+   return is_icmpv6(pkt) and pkt.data[o_icmpv6_msg_type] == msg_type and pkt.data[o_icmpv6_msg_code] == msg_code
 end

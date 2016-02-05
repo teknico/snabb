@@ -21,7 +21,9 @@ function lwaftr_app(c, conf)
 
    config.app(c, "reassemblerv4", ipv4_apps.Reassembler, {})
    config.app(c, "reassemblerv6", ipv6_apps.Reassembler, {})
+   config.app(c, "icmpechov4", ipv4_apps.ICMPEcho, { address = conf.aftr_ipv4_ip })
    config.app(c, 'lwaftr', lwaftr.LwAftr, conf)
+   config.app(c, "icmpechov6", ipv6_apps.ICMPEcho, { address = conf.aftr_ipv6_ip })
    config.app(c, "fragmenterv4", ipv4_apps.Fragmenter,
               { mtu=conf.ipv4_mtu })
    config.app(c, "fragmenterv6", ipv6_apps.Fragmenter,
@@ -53,11 +55,17 @@ function lwaftr_app(c, conf)
       prepend(postprocessing_apps_v6, "egress_filterv6")
    end
 
-   config.link(c, 'ndp.north -> lwaftr.v6')
-   config.link(c, 'lwaftr.v6 -> ndp.north')
+   append(preprocessing_apps_v4,   { name = "icmpechov4", input = "south", output = "north" })
+   prepend(postprocessing_apps_v4, { name = "icmpechov4", input = "north", output = "south" })
+
+   append(preprocessing_apps_v6,   { name = "ndp",        input = "south", output = "north" })
+   append(preprocessing_apps_v6,   { name = "icmpechov6", input = "south", output = "north" })
+   prepend(postprocessing_apps_v6, { name = "icmpechov6", input = "north", output = "south" })
+   prepend(postprocessing_apps_v6, { name = "ndp",        input = "north", output = "south" })
+
    set_preprocessors(c, preprocessing_apps_v4, "lwaftr.v4")
-   set_preprocessors(c, preprocessing_apps_v6, "ndp.south")
-   set_postprocessors(c, "ndp.south", postprocessing_apps_v6)
+   set_preprocessors(c, preprocessing_apps_v6, "lwaftr.v6")
+   set_postprocessors(c, "lwaftr.v6", postprocessing_apps_v6)
    set_postprocessors(c, "lwaftr.v4", postprocessing_apps_v4)
 end
 
@@ -78,12 +86,20 @@ end
 function set_preprocessors(c, apps, dst)
    assert(type(apps) == "table")
    link_apps(c, apps)
-   config.link(c, ("%s.output -> %s"):format(apps[#apps], dst))
+   local last_app, output = apps[#apps], "output"
+   if type(last_app) == "table" then
+      last_app, output = last_app.name, last_app.output
+   end
+   config.link(c, ("%s.%s -> %s"):format(last_app, output, dst))
 end
 
 function set_postprocessors(c, src, apps)
    assert(type(apps) == "table")
-   config.link(c, ("%s -> %s.input"):format(src, apps[1]))
+   local first_app, input = apps[1], "input"
+   if type(first_app) == "table" then
+      first_app, input = first_app.name, first_app.input
+   end
+   config.link(c, ("%s -> %s.%s"):format(src, first_app, input))
    link_apps(c, apps)
 end
 

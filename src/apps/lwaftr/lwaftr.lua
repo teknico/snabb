@@ -25,6 +25,7 @@ local rshift, lshift = bit.rshift, bit.lshift
 local cast = ffi.cast
 local receive, transmit = link.receive, link.transmit
 local rd16, wr16, rd32, ipv6_equals = lwutil.rd16, lwutil.wr16, lwutil.rd32, lwutil.ipv6_equals
+local is_ipv4, is_ipv6 = lwutil.is_ipv4, lwutil.is_ipv6
 local get_ihl_from_offset = lwutil.get_ihl_from_offset
 local htons, htonl = lwutil.htons, lwutil.htonl
 local ntohs, ntohl = htons, htonl
@@ -36,16 +37,9 @@ local debug = false
 -- Local bindings for constants that are used in the hot path of the
 -- data plane.  Not having them here is a 1-2% performance penalty.
 local ethernet_header_size = constants.ethernet_header_size
-local o_ethernet_ethertype = constants.o_ethernet_ethertype
 local n_ethertype_ipv4 = constants.n_ethertype_ipv4
 local n_ethertype_ipv6 = constants.n_ethertype_ipv6
 
-local function is_ipv6(pkt)
-   return rd16(pkt.data + o_ethernet_ethertype) == n_ethertype_ipv6
-end
-local function is_ipv4(pkt)
-   return rd16(pkt.data + o_ethernet_ethertype) == n_ethertype_ipv4
-end
 local function get_ethernet_payload(pkt)
    return pkt.data + ethernet_header_size
 end

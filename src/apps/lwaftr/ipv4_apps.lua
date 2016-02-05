@@ -22,6 +22,14 @@ local o_ipv4_identification = constants.o_ipv4_identification
 local o_ipv4_src_addr = constants.o_ipv4_src_addr
 local o_ipv4_dst_addr = constants.o_ipv4_dst_addr
 
+local ethernet_header_size = constants.ethernet_header_size
+local o_ipv4_ver_and_ihl = ethernet_header_size + constants.o_ipv4_ver_and_ihl
+local o_ipv4_checksum = ethernet_header_size + constants.o_ipv4_checksum
+local o_icmpv4_msg_type_sans_ihl = ethernet_header_size + constants.o_icmpv4_msg_type
+local o_icmpv4_checksum_sans_ihl = ethernet_header_size + constants.o_icmpv4_checksum
+local icmpv4_echo_request = constants.icmpv4_echo_request
+local icmpv4_echo_reply = constants.icmpv4_echo_reply
+
 Reassembler = {}
 Fragmenter = {}
 ICMPEcho = {}
@@ -31,10 +39,10 @@ function Reassembler:new(conf)
    o.conf = conf
 
    if conf.vlan_tagging then
-      o.l2_size = constants.ethernet_header_size + 4
+      o.l2_size = ethernet_header_size + 4
       o.ethertype_offset = constants.o_ethernet_ethertype + 4
    else
-      o.l2_size = constants.ethernet_header_size
+      o.l2_size = ethernet_header_size
       o.ethertype_offset = constants.o_ethernet_ethertype
    end
    o.fragment_cache = {}
@@ -108,10 +116,10 @@ function Fragmenter:new(conf)
    o.mtu = assert(conf.mtu)
 
    if conf.vlan_tagging then
-      o.l2_size = constants.ethernet_header_size + 4
+      o.l2_size = ethernet_header_size + 4
       o.ethertype_offset = constants.o_ethernet_ethertype + 4
    else
-      o.l2_size = constants.ethernet_header_size
+      o.l2_size = ethernet_header_size
       o.ethertype_offset = constants.o_ethernet_ethertype
    end
 
@@ -160,27 +168,27 @@ function ICMPEcho:push()
    for _ = 1, math.min(link.nreadable(l_in), link.nwritable(l_out)) do
       local out, pkt = l_out, receive(l_in)
 
-      if icmp.is_icmpv4_message(pkt, constants.icmpv4_echo_request, 0) then
-         local pkt_ipv4 = ipv4:new_from_mem(pkt.data + constants.ethernet_header_size,
-                                            pkt.length - constants.ethernet_header_size)
+      if icmp.is_icmpv4_message(pkt, icmpv4_echo_request, 0) then
+         local pkt_ipv4 = ipv4:new_from_mem(pkt.data + ethernet_header_size,
+                                            pkt.length - ethernet_header_size)
          local pkt_ipv4_dst = rd32(pkt_ipv4:dst())
          if self.addresses[pkt_ipv4_dst] then
-            ethernet:new_from_mem(pkt.data, constants.ethernet_header_size):swap()
+            ethernet:new_from_mem(pkt.data, ethernet_header_size):swap()
 
             -- Swap IP source/destination
             pkt_ipv4:dst(pkt_ipv4:src())
             wr32(pkt_ipv4:src(), pkt_ipv4_dst)
 
             -- Change ICMP message type
-            local icmp_offset = constants.ethernet_header_size +
-                  get_ihl_from_offset(pkt, constants.ethernet_header_size + constants.o_ipv4_ver_and_ihl)
-            pkt.data[icmp_offset + constants.o_icmpv4_msg_type] = constants.icmpv4_echo_reply
+            local ihl = get_ihl_from_offset(pkt, o_ipv4_ver_and_ihl)
+            pkt.data[o_icmpv4_msg_type_sans_ihl + ihl] = icmpv4_echo_reply
 
             -- Recalculate checksums
-            wr16(pkt.data + icmp_offset + constants.o_icmpv4_checksum, 0)
+            wr16(pkt.data + o_icmpv4_checksum_sans_ihl + ihl, 0)
+            local icmp_offset = ethernet_header_size + ihl
             local csum = checksum.ipsum(pkt.data + icmp_offset, pkt.length - icmp_offset, 0)
-            wr16(pkt.data + icmp_offset + constants.o_icmpv4_checksum, htons(csum))
-            wr16(pkt.data + constants.ethernet_header_size + constants.o_ipv4_checksum, 0)
+            wr16(pkt.data + o_icmpv4_checksum_sans_ihl + ihl, htons(csum))
+            wr16(pkt.data + o_ipv4_checksum, 0)
             pkt_ipv4:checksum()
 
             out = l_reply

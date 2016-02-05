@@ -49,3 +49,8 @@ function keys(t)
    return result
 end
 
+local uint64_ptr_t = ffi.typeof('uint64_t*')
+function ipv6_equals(a, b)
+   local a, b = ffi.cast(uint64_ptr_t, a), ffi.cast(uint64_ptr_t, b)
+   return a[0] == b[0] and a[1] == b[1]
+end

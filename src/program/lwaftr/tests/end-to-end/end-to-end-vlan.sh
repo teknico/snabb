@@ -52,6 +52,41 @@ snabb_run_and_cmp ${TEST_CONF}/icmp_on_fail_vlan.conf \
    ${TEST_DATA}/tcp-frominet-trafficclass.pcap ${EMPTY} \
    ${EMPTY} ${TEST_DATA}/tcp-afteraftr-ipv6-trafficclass.pcap
 
+echo "Testing: NDP: incoming NDP Neighbor Solicitation"
+snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
+   ${EMPTY} ${TEST_DATA}/ndp_incoming_ns.pcap \
+   ${EMPTY} ${TEST_DATA}/ndp_outgoing_solicited_na.pcap
+
+echo "Testing: NDP: incoming NDP Neighbor Solicitation, secondary IP"
+snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
+   ${EMPTY} ${TEST_DATA}/ndp_incoming_ns_secondary.pcap \
+   ${EMPTY} ${TEST_DATA}/ndp_outgoing_solicited_na_secondary.pcap
+
+echo "Testing: NDP: incoming NDP Neighbor Solicitation, non-lwAFTR IP"
+snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
+   ${EMPTY} ${TEST_DATA}/ndp_incoming_ns_nonlwaftr.pcap \
+   ${EMPTY} ${EMPTY}
+
+echo "Testing: NDP: IPv6 but not eth addr of next IPv6 hop set, do Neighbor Solicitation"
+snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_withoutmac_vlan.conf \
+   ${EMPTY} ${EMPTY} \
+   ${EMPTY} ${TEST_DATA}/ndp_outgoing_ns.pcap
+
+# mergecap -F pcap -w ndp_without_dst_eth_compound.pcap tcp-fromb4-ipv6.pcap tcp-fromb4-tob4-ipv6.pcap
+# mergecap -F pcap -w ndp_ns_and_recap.pcap recap-ipv6.pcap ndp_outgoing_ns.pcap
+echo "Testing: NDP: Without receiving NA, next_hop6_mac not set"
+snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_withoutmac_vlan.conf \
+   ${EMPTY} ${TEST_DATA}/ndp_without_dst_eth_compound.pcap \
+   ${TEST_DATA}/decap-ipv4.pcap ${TEST_DATA}/ndp_outgoing_ns.pcap
+
+# mergecap -F pcap -w ndp_getna_compound.pcap tcp-fromb4-ipv6.pcap \
+# ndp_incoming_solicited_na.pcap tcp-fromb4-tob4-ipv6.pcap
+# mergecap -F pcap -w ndp_ns_and_recap.pcap ndp_outgoing_ns.pcap recap-ipv6.pcap
+echo "Testing: NDP: With receiving NA, next_hop6_mac not initially set"
+snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_withoutmac_vlan.conf \
+   ${EMPTY} ${TEST_DATA}/ndp_getna_compound.pcap \
+   ${TEST_DATA}/decap-ipv4.pcap ${TEST_DATA}/ndp_ns_and_recap.pcap
+
 echo "Testing: from-internet IPv4 packet found in the binding table, original TTL=1."
 snabb_run_and_cmp ${TEST_CONF}/icmp_on_fail_vlan.conf \
    ${TEST_DATA}/tcp-frominet-bound-ttl1.pcap ${EMPTY}\

@@ -35,6 +35,8 @@ icmpv6_dst_unreachable = 1
 icmpv6_packet_too_big = 2
 icmpv6_time_limit_exceeded = 3
 icmpv6_parameter_problem = 4
+icmpv6_ns = 135
+icmpv6_na = 136
 
 -- ICMPv6 codes
 icmpv6_code_packet_too_big = 0
@@ -46,6 +48,7 @@ ethernet_header_size = 14 -- TODO: deal with 802.1Q tags/other extensions?
 
 ipv6_fixed_header_size = 40
 ipv6_frag_header_size = 8
+ipv6_pseudoheader_size = 40
 
 icmp_base_size = 8 -- size excluding the IP header/playload
 max_icmpv4_packet_size = 576 -- RFC 1812
@@ -72,6 +75,7 @@ o_ipv4_dst_addr = 16
 
 o_ipv6_payload_len = 4
 o_ipv6_next_header = 6
+o_ipv6_hop_limit = 7
 o_ipv6_src_addr = 8
 o_ipv6_dst_addr = 24
 

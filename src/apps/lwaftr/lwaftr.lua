@@ -24,7 +24,7 @@ local band, bor, bnot = bit.band, bit.bor, bit.bnot
 local rshift, lshift = bit.rshift, bit.lshift
 local cast = ffi.cast
 local receive, transmit = link.receive, link.transmit
-local rd16, wr16, rd32 = lwutil.rd16, lwutil.wr16, lwutil.rd32
+local rd16, wr16, rd32, ipv6_equals = lwutil.rd16, lwutil.wr16, lwutil.rd32, lwutil.ipv6_equals
 local get_ihl_from_offset = lwutil.get_ihl_from_offset
 local htons, htonl = lwutil.htons, lwutil.htonl
 local ntohs, ntohl = htons, htonl
@@ -206,7 +206,7 @@ function LwAftr:new(conf)
    o.aftr_ipv6_ip = conf.aftr_ipv6_ip
    o.aftr_mac_b4_side = conf.aftr_mac_b4_side
    o.aftr_mac_inet_side = conf.aftr_mac_inet_side
-   o.b4_mac = conf.b4_mac
+   o.b4_mac = conf.b4_mac or ethernet:pton("00:00:00:00:00:00")
    o.hairpinning = conf.hairpinning
    o.icmpv6_rate_limiter_n_packets = conf.icmpv6_rate_limiter_n_packets
    o.icmpv6_rate_limiter_n_seconds = conf.icmpv6_rate_limiter_n_seconds
@@ -218,7 +218,7 @@ function LwAftr:new(conf)
    o.policy_icmpv6_incoming = conf.policy_icmpv6_incoming
    o.policy_icmpv6_outgoing = conf.policy_icmpv6_outgoing
 
-   o.binding_table = bt.load(o.conf.binding_table)
+   o.binding_table = conf.preloaded_binding_table or bt.load(o.conf.binding_table)
 
    transmit_icmpv6_with_rate_limit = init_transmit_icmpv6_with_rate_limit(o)
    on_signal("hup", function()
@@ -271,12 +271,6 @@ end
 
 local function ipv4_in_binding_table(lwstate, ip)
    return lwstate.binding_table:is_managed_ipv4_address(ip)
-end
-
-local uint64_ptr_t = ffi.typeof('uint64_t*')
-local function ipv6_equals(a, b)
-   local a, b = ffi.cast(uint64_ptr_t, a), ffi.cast(uint64_ptr_t, b)
-   return a[0] == b[0] and a[1] == b[1]
 end
 
 local function in_binding_table(lwstate, ipv6_src_ip, ipv6_dst_ip, ipv4_src_ip, ipv4_src_port)

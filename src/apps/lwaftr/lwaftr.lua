@@ -206,7 +206,7 @@ function LwAftr:new(conf)
    o.aftr_ipv6_ip = conf.aftr_ipv6_ip
    o.aftr_mac_b4_side = conf.aftr_mac_b4_side
    o.aftr_mac_inet_side = conf.aftr_mac_inet_side
-   o.b4_mac = conf.b4_mac
+   o.b4_mac = conf.b4_mac or ethernet:pton("00:00:00:00:00:00")
    o.hairpinning = conf.hairpinning
    o.icmpv6_rate_limiter_n_packets = conf.icmpv6_rate_limiter_n_packets
    o.icmpv6_rate_limiter_n_seconds = conf.icmpv6_rate_limiter_n_seconds
@@ -218,7 +218,7 @@ function LwAftr:new(conf)
    o.policy_icmpv6_incoming = conf.policy_icmpv6_incoming
    o.policy_icmpv6_outgoing = conf.policy_icmpv6_outgoing
 
-   o.binding_table = bt.load(o.conf.binding_table)
+   o.binding_table = conf.preloaded_binding_table or bt.load(o.conf.binding_table)
 
    transmit_icmpv6_with_rate_limit = init_transmit_icmpv6_with_rate_limit(o)
    on_signal("hup", function()

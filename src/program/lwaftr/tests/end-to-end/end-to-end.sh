@@ -28,11 +28,11 @@ function snabb_run_and_cmp {
       echo "not enough arguments to snabb_run_and_cmp"
       exit 1
    fi
-   ${SNABB_LWAFTR} check \
-      $1 $2 $3 ${TEST_OUT}/endoutv4.pcap ${TEST_OUT}/endoutv6.pcap || quit_with_msg \
-        "Failure: ${SNABB_LWAFTR} check \
+   (${SNABB_LWAFTR} check \
+      $1 $2 $3 ${TEST_OUT}/endoutv4.pcap ${TEST_OUT}/endoutv6.pcap | grep -v compiled) || 
+   quit_with_msg "Failure: ${SNABB_LWAFTR} check \
          $1 $2 $3 \
-         ${TEST_OUT}/endoutv4.pcap ${TEST_OUT}/endoutv6.pcap"
+         ${TEST_OUT}/endoutv4.pcap ${TEST_OUT}/endoutv6.pcap" 
    scmp $4 ${TEST_OUT}/endoutv4.pcap \
     "Failure: ${SNABB_LWAFTR} check $1 $2 $3 $4 $5"
    scmp $5 ${TEST_OUT}/endoutv6.pcap \
@@ -49,6 +49,46 @@ echo "Testing: from-internet IPv4 packet found in the binding table with vlan ta
 snabb_run_and_cmp ${TEST_BASE}/vlan.conf \
    ${TEST_BASE}/tcp-frominet-bound-vlan.pcap ${EMPTY} \
    ${EMPTY} ${TEST_BASE}/tcp-afteraftr-ipv6-vlan.pcap
+
+echo "Testing: NDP: incoming NDP Neighbor Solicitation"
+snabb_run_and_cmp ${TEST_BASE}/tunnel_icmp.conf \
+   ${EMPTY} ${TEST_BASE}/ndp_incoming_ns.pcap \
+   ${EMPTY} ${TEST_BASE}/ndp_outgoing_solicited_na.pcap
+
+echo "Testing: NDP: incoming NDP Neighbor Solicitation, secondary IP"
+snabb_run_and_cmp ${TEST_BASE}/tunnel_icmp.conf \
+   ${EMPTY} ${TEST_BASE}/ndp_incoming_ns_secondary.pcap \
+   ${EMPTY} ${TEST_BASE}/ndp_outgoing_solicited_na_secondary.pcap
+
+echo "Testing: NDP: incoming NDP Neighbor Solicitation, non-lwAFTR IP"
+snabb_run_and_cmp ${TEST_BASE}/tunnel_icmp.conf \
+   ${EMPTY} ${TEST_BASE}/ndp_incoming_ns_nonlwaftr.pcap \
+   ${EMPTY} ${EMPTY}
+
+echo "Testing: NDP: IPv6 but not eth addr of next IPv6 hop set, do Neighbor Solicitation"
+snabb_run_and_cmp ${TEST_BASE}/tunnel_icmp_withoutmac.conf \
+   ${EMPTY} ${EMPTY} \
+   ${EMPTY} ${TEST_BASE}/ndp_outgoing_ns.pcap
+
+# mergecap -F pcap -w ndp_without_dst_eth_compound.pcap tcp-fromb4-ipv6.pcap tcp-fromb4-tob4-ipv6.pcap
+# mergecap -F pcap -w ndp_ns_and_recap.pcap recap-ipv6.pcap ndp_outgoing_ns.pcap
+echo "Testing: NDP: Without receiving NA, next_hop6_mac not set"
+snabb_run_and_cmp ${TEST_BASE}/tunnel_icmp_withoutmac.conf \
+   ${EMPTY} ${TEST_BASE}/ndp_without_dst_eth_compound.pcap \
+   ${TEST_BASE}/decap-ipv4.pcap ${TEST_BASE}/ndp_outgoing_ns.pcap
+
+# mergecap -F pcap -w ndp_getna_compound.pcap tcp-fromb4-ipv6.pcap \
+# ndp_incoming_solicited_na.pcap tcp-fromb4-tob4-ipv6.pcap
+# mergecap -F pcap -w ndp_ns_and_recap.pcap ndp_outgoing_ns.pcap recap-ipv6.pcap
+echo "Testing: NDP: With receiving NA, next_hop6_mac not initially set"
+snabb_run_and_cmp ${TEST_BASE}/tunnel_icmp_withoutmac.conf \
+   ${EMPTY} ${TEST_BASE}/ndp_getna_compound.pcap \
+   ${TEST_BASE}/decap-ipv4.pcap ${TEST_BASE}/ndp_ns_and_recap.pcap
+
+echo "Testing: IPv6 packet, next hop NA, packet, eth addr not set in configuration."
+snabb_run_and_cmp ${TEST_BASE}/tunnel_icmp_withoutmac.conf \
+   ${EMPTY} ${EMPTY} \
+   ${EMPTY} ${TEST_BASE}/ndp_outgoing_ns.pcap
 
 echo "Testing: from-internet IPv4 fragmented packets found in the binding table."
 snabb_run_and_cmp ${TEST_BASE}/icmp_on_fail.conf \

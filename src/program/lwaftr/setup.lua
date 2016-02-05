@@ -7,6 +7,7 @@ local VirtioNet  = require("apps.virtio_net.virtio_net").VirtioNet
 local lwaftr     = require("apps.lwaftr.lwaftr")
 local basic_apps = require("apps.basic.basic_apps")
 local pcap       = require("apps.pcap.pcap")
+local bt         = require("apps.lwaftr.binding_table")
 local ipv4_apps  = require("apps.lwaftr.ipv4_apps")
 local ipv6_apps  = require("apps.lwaftr.ipv6_apps")
 local vlan       = require("apps.lwaftr.vlan")
@@ -14,6 +15,7 @@ local ethernet   = require("lib.protocol.ethernet")
 
 function lwaftr_app(c, conf)
    assert(type(conf) == 'table')
+   conf.preloaded_binding_table = bt.load(conf.binding_table)
    local function append(t, elem) table.insert(t, elem) end
    local function prepend(t, elem) table.insert(t, 1, elem) end
 
@@ -24,9 +26,13 @@ function lwaftr_app(c, conf)
               { mtu=conf.ipv4_mtu })
    config.app(c, "fragmenterv6", ipv6_apps.Fragmenter,
               { mtu=conf.ipv6_mtu })
+   config.app(c, "ndp", ipv6_apps.NDP,
+              { src_ipv6 = conf.aftr_ipv6_ip, src_eth = conf.aftr_mac_b4_side,
+                dst_eth = conf.b4_mac, dst_ipv6 = conf.next_hop_ipv6_addr,
+                all_ipv6_addrs = conf.preloaded_binding_table:get_br_addresses() })
 
    local preprocessing_apps_v4  = { "reassemblerv4" }
-   local preprocessing_apps_v6  = { "reassemblerv6" }
+   local preprocessing_apps_v6  = { "reassemblerv6"}
    local postprocessing_apps_v4  = { "fragmenterv4" }
    local postprocessing_apps_v6  = { "fragmenterv6" }
 
@@ -47,9 +53,11 @@ function lwaftr_app(c, conf)
       prepend(postprocessing_apps_v6, "egress_filterv6")
    end
 
+   config.link(c, 'ndp.north -> lwaftr.v6')
+   config.link(c, 'lwaftr.v6 -> ndp.north')
    set_preprocessors(c, preprocessing_apps_v4, "lwaftr.v4")
-   set_preprocessors(c, preprocessing_apps_v6, "lwaftr.v6")
-   set_postprocessors(c, "lwaftr.v6", postprocessing_apps_v6)
+   set_preprocessors(c, preprocessing_apps_v6, "ndp.south")
+   set_postprocessors(c, "ndp.south", postprocessing_apps_v6)
    set_postprocessors(c, "lwaftr.v4", postprocessing_apps_v4)
 end
 

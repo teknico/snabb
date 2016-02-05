@@ -80,12 +80,13 @@ function Reassembler:push ()
             transmit(output, maybe_pkt)
          elseif status == fragmentv4.REASSEMBLE_MISSING_FRAGMENT then
             -- Nothing to do, just wait.
-         else
-            assert(frag_status == fragmentv4.REASSEMBLE_INVALID)
+         elseif status == fragmentv4.REASSEMBLE_INVALID then
             self:clean_fragment_cache(frags)
             if maybe_pkt then -- This is an ICMP packet
                transmit(errors, maybe_pkt)
             end
+         else -- unreachable
+            packet.free(pkt)
          end
       else
          -- Forward all packets that aren't IPv4 fragments.

@@ -23,6 +23,14 @@ local n_ethertype_ipv6 = constants.n_ethertype_ipv6
 local o_ipv6_src_addr = constants.o_ipv6_src_addr
 local o_ipv6_dst_addr = constants.o_ipv6_dst_addr
 
+local proto_icmpv6 = constants.proto_icmpv6
+local ethernet_header_size = constants.ethernet_header_size
+local o_icmpv6_header = ethernet_header_size + ipv6_fixed_header_size
+local o_icmpv6_msg_type = o_icmpv6_header + constants.o_icmpv6_msg_type
+local o_icmpv6_checksum = o_icmpv6_header + constants.o_icmpv6_checksum
+local icmpv6_echo_request = constants.icmpv6_echo_request
+local icmpv6_echo_reply = constants.icmpv6_echo_reply
+
 Reassembler = {}
 Fragmenter = {}
 NDP = {}
@@ -238,31 +246,30 @@ function ICMPEcho:push()
    for _ = 1, math.min(link.nreadable(l_in), link.nwritable(l_out)) do
       local out, pkt = l_out, receive(l_in)
 
-      if icmp.is_icmpv6_message(pkt, constants.icmpv6_echo_request, 0) then
-         local pkt_ipv6 = ipv6:new_from_mem(pkt.data + constants.ethernet_header_size,
-                                            pkt.length - constants.ethernet_header_size)
+      if icmp.is_icmpv6_message(pkt, icmpv6_echo_request, 0) then
+         local pkt_ipv6 = ipv6:new_from_mem(pkt.data + ethernet_header_size,
+                                            pkt.length - ethernet_header_size)
          local pkt_ipv6_dst = ffi.string(pkt_ipv6:dst(), 16)
          if self.addresses[pkt_ipv6_dst] then
-            ethernet:new_from_mem(pkt.data, constants.ethernet_header_size):swap()
+            ethernet:new_from_mem(pkt.data, ethernet_header_size):swap()
 
             -- Swap IP source/destination
             pkt_ipv6:dst(pkt_ipv6:src())
             pkt_ipv6:src(pkt_ipv6_dst)
 
             -- Change ICMP message type
-            local icmp_offset = constants.ethernet_header_size + constants.ipv6_fixed_header_size
-            pkt.data[icmp_offset + constants.o_icmpv6_msg_type] = constants.icmpv6_echo_reply
+            pkt.data[o_icmpv6_msg_type] = icmpv6_echo_reply
 
             -- Recalculate checksums
-            wr16(pkt.data + icmp_offset + constants.o_icmpv6_checksum, 0)
-            local ph_len = pkt.length - icmp_offset
-            local ph = pkt_ipv6:pseudo_header(ph_len, constants.proto_icmpv6)
+            wr16(pkt.data + o_icmpv6_checksum, 0)
+            local ph_len = pkt.length - o_icmpv6_header
+            local ph = pkt_ipv6:pseudo_header(ph_len, proto_icmpv6)
             local csum = checksum.ipsum(ffi.cast("uint8_t*", ph), ffi.sizeof(ph), 0)
-            csum = checksum.ipsum(pkt.data + icmp_offset, 4, bit.bnot(csum))
-            csum = checksum.ipsum(pkt.data + icmp_offset + 4,
-                                  pkt.length - icmp_offset - 4,
+            csum = checksum.ipsum(pkt.data + o_icmpv6_header, 4, bit.bnot(csum))
+            csum = checksum.ipsum(pkt.data + o_icmpv6_header + 4,
+                                  pkt.length - o_icmpv6_header - 4,
                                   bit.bnot(csum))
-            wr16(pkt.data + icmp_offset + constants.o_icmpv6_checksum, htons(csum))
+            wr16(pkt.data + o_icmpv6_checksum, htons(csum))
 
             out = l_reply
          end

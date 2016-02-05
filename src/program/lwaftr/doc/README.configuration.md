@@ -8,7 +8,7 @@ aftr_ipv4_ip = 10.10.10.10
 aftr_ipv6_ip = 8:9:a:b:c:d:e:f
 aftr_mac_b4_side = 22:22:22:22:22:22
 aftr_mac_inet_side = 12:12:12:12:12:12
-b4_mac = 44:44:44:44:44:44
+next_hop6_mac = 44:44:44:44:44:44
 binding_table = path/to/binding.table
 hairpinning = true
 icmpv6_rate_limiter_n_packets=3e5
@@ -51,7 +51,7 @@ it will talk directly to only one host on each side, and specifies their MAC
 addresses for the outgoing packets.
 
 ```lua
-b4_mac = 44:44:44:44:44:44
+next_hop6_mac = 44:44:44:44:44:44
 inet_mac = 68:68:68:68:68:68
 ```
 

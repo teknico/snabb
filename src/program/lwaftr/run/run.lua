@@ -105,6 +105,7 @@ function run(args)
       csv:activate()
    end
 
+   engine.busywait = true
    if opts.duration then
       engine.main({duration=opts.duration, report={showlinks=true}})
    else

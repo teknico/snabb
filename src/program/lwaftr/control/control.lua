@@ -25,7 +25,7 @@ function parse_args(args)
    if command == 'reload' then
       return pid, { messages.lwaftr_message_reload }
    elseif command == 'dump-configuration' then
-      return pid, { messages.lwaftr_message_reload }
+      return pid, { messages.lwaftr_message_dump_config }
    end
    print('Unknown command: '..command)
    show_usage(1)

@@ -588,8 +588,8 @@ function LwAftr:push ()
             print('Reloading binding table.')
             self.binding_table = bt.load(self.conf.binding_table)
          elseif msg.kind == messages.lwaftr_message_dump_config then
-            dump.dump_configuration(o)
-            dump.dump_binding_table(o)
+            dump.dump_configuration(self)
+            dump.dump_binding_table(self)
          else
             print('Unhandled message: '..tostring(msg))
          end

@@ -584,10 +584,10 @@ function LwAftr:push ()
    do
       local msg = self.control:pop()
       if msg then
-         if msg == messages.lwaftr_message_reload then 
+         if msg.kind == messages.lwaftr_message_reload then
             print('Reloading binding table.')
             self.binding_table = bt.load(self.conf.binding_table)
-         elseif msg == messages.lwaftr_message_dump_config then
+         elseif msg.kind == messages.lwaftr_message_dump_config then
             dump.dump_configuration(o)
             dump.dump_binding_table(o)
          else

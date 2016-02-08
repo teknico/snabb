@@ -9,8 +9,24 @@ local ethernet_header_type = ffi.typeof([[
       uint16_t ether_type;
    }
 ]])
-
 ethernet_header_ptr_type = ffi.typeof("$*", ethernet_header_type)
+ethernet_header_size = ffi.sizeof(ethernet_header_type)
+
+local ipv4hdr_t = ffi.typeof[[
+struct {
+  uint16_t ihl_v_tos; // ihl:4, version:4, tos(dscp:6 + ecn:2)
+  uint16_t total_length;
+  uint16_t id;
+  uint16_t frag_off; // flags:3, fragmen_offset:13
+  uint8_t  ttl;
+  uint8_t  protocol;
+  uint16_t checksum;
+  uint8_t  src_ip[4];
+  uint8_t  dst_ip[4];
+} __attribute__((packed))
+]]
+ipv4_header_ptr_type = ffi.typeof("$*", ipv4hdr_t)
+ipv4_header_size = ffi.sizeof(ipv4hdr_t)
 
 local ipv6_ptr_type = ffi.typeof([[
    struct {
@@ -22,5 +38,16 @@ local ipv6_ptr_type = ffi.typeof([[
       uint8_t  dst_ip[16];
    } __attribute__((packed))
 ]])
-
 ipv6_header_ptr_type = ffi.typeof("$*", ipv6_ptr_type)
+ipv6_header_size = ffi.sizeof(ipv6_ptr_type)
+
+local udp_header_t = ffi.typeof[[
+struct {
+  uint16_t    src_port;
+  uint16_t    dst_port;
+  uint16_t    len;
+  uint16_t    checksum;
+} __attribute__((packed))
+]]
+udp_header_ptr_type = ffi.typeof("$*", udp_header_t)
+udp_header_size = ffi.sizeof(udp_header_t)

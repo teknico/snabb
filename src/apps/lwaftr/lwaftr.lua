@@ -9,8 +9,9 @@ local lwdebug = require("apps.lwaftr.lwdebug")
 local lwheader = require("apps.lwaftr.lwheader")
 local lwutil = require("apps.lwaftr.lwutil")
 
-local S = require("syscall")
-local timer = require("core.timer")
+local channel = require("apps.lwaftr.channel")
+local messages = require("apps.lwaftr.messages")
+
 local checksum = require("lib.checksum")
 local ethernet = require("lib.protocol.ethernet")
 local ipv6 = require("lib.protocol.ipv6")
@@ -171,19 +172,6 @@ local function init_transmit_icmpv6_with_rate_limit(lwstate)
    end
 end
 
-local function on_signal(sig, f)
-   local fd = S.signalfd(sig, "nonblock") -- handle signal via fd
-   local buf = S.types.t.siginfos(8)
-   S.sigprocmask("block", sig)            -- block traditional handler
-   timer.activate(timer.new(sig, function ()
-      local events, err = S.util.signalfd_read(fd, buf)
-      if events and #events > 0 then
-         print(("[snabb-lwaftr: %s caught]"):format(sig:upper()))
-         f()
-      end
-  end, 1e4, 'repeating'))
-end
-
 LwAftr = {}
 
 function LwAftr:new(conf)
@@ -214,15 +202,9 @@ function LwAftr:new(conf)
 
    o.binding_table = conf.preloaded_binding_table or bt.load(o.conf.binding_table)
 
+   o.control = channel.create('lwaftr/control', messages.lwaftr_message_t)
+
    transmit_icmpv6_with_rate_limit = init_transmit_icmpv6_with_rate_limit(o)
-   on_signal("hup", function()
-      print('Reloading binding table.')
-      o.binding_table = bt.load(o.conf.binding_table)
-   end)
-   on_signal("usr1", function()
-      dump.dump_configuration(o)
-      dump.dump_binding_table(o)
-   end)
    if debug then lwdebug.pp(conf) end
    return o
 end
@@ -586,6 +568,21 @@ function LwAftr:push ()
    local i4, i6 = self.input.v4, self.input.v6
    local o4, o6 = self.output.v4, self.output.v6
    self.o4, self.o6 = o4, o6
+
+   do
+      local msg = self.control:pop()
+      if msg then
+         if msg.kind == messages.lwaftr_message_reload then
+            print('Reloading binding table.')
+            self.binding_table = bt.load(self.conf.binding_table)
+         elseif msg.kind == messages.lwaftr_message_dump_config then
+            dump.dump_configuration(self)
+            dump.dump_binding_table(self)
+         else
+            print('Unhandled message: '..tostring(msg))
+         end
+      end
+   end
 
    for _=1,link.nreadable(i4) do
       -- Encapsulate incoming IPv4 packets from the internet interface.

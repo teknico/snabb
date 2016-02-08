@@ -4,6 +4,7 @@ Usage:
   snabb-lwaftr run
   snabb-lwaftr transient
   snabb-lwaftr compile-binding-table
+  snabb-lwaftr control
 
 Use --help for per-command usage.
 Example:

@@ -11,6 +11,7 @@ module(..., package.seeall)
 local ffi = require('ffi')
 local bit = require('bit')
 local S = require("syscall")
+local lib = require('core.lib')
 
 root = "/var/run/snabb"
 
@@ -90,6 +91,7 @@ local function to_uint32 (num)
 end
 
 local function read_avail (ring)
+   lib.compiler_barrier()
    return to_uint32(ring.write - ring.read)
 end
 
@@ -112,8 +114,17 @@ end
 --  4. Updating a write pointer or a read pointer should eventually be
 --     visible to the reader or writer, respectively.
 --
--- We throw in a full memory barrier in a hope that it ensures (1) and
--- (4).  I do not know about (2) and (3).
+-- The full memory barrier after updates to the read or write pointer
+-- ensures (1).  The x86 memory model, and the memory model of C11,
+-- guarantee (2) and (3).  For (4), the memory barrier on the writer
+-- side ensures that updates to the read or write pointers are
+-- eventually visible to other CPUs, but we also have to insert a
+-- compiler barrier before reading them to prevent LuaJIT from caching
+-- their value somewhere else, like in a register.  See
+-- https://www.kernel.org/doc/Documentation/memory-barriers.txt for more
+-- discussion on memory models, and
+-- http://www.freelists.org/post/luajit/Compiler-loadstore-barrier-volatile-pointer-barriers-in-general,3
+-- for more on compiler barriers in LuaJIT.
 --
 -- If there are multiple readers or writers, they should serialize their
 -- accesses through some other mechanism.

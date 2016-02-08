@@ -16,9 +16,9 @@ local function required(key)
    end
 end
 
-local function required_if(key, pred)
+local function required_if(key, otherkey)
    return function(config)
-      if config[pred] then
+      if config[otherkey] then
          error('missing required configuration key "'..key..'"')
       end
    end

@@ -575,6 +575,11 @@ function LwAftr:push ()
          if msg.kind == messages.lwaftr_message_reload then
             print('Reloading binding table.')
             self.binding_table = bt.load(self.conf.binding_table)
+            -- We don't know why yet, but something about reloading a
+            -- binding table makes LuaJIT switch to side traces instead
+            -- of main traces.  Very weird.  Flushing the JIT state
+            -- fixes it, but it's quite a big hammer!
+            require('jit').flush()
          elseif msg.kind == messages.lwaftr_message_dump_config then
             dump.dump_configuration(self)
             dump.dump_binding_table(self)

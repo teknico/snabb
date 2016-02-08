@@ -14,8 +14,6 @@ local S = require("syscall")
 
 root = "/var/run/snabb"
 
-local default_buffer_size = 1024
-
 local ring_buffer_t = ffi.typeof([[struct {
    uint32_t read;
    uint32_t write;
@@ -51,7 +49,6 @@ local function create_ring_buffer (name, size)
       local err = tostring(err or "unknown error")
       error('error creating file "'..path..'": '..err)
    end
-   size = size or default_buffer_size
    local len = ffi.sizeof(ring_buffer_t, size)
    assert(fd:ftruncate(len), "ring buffer: ftruncate failed")
    local mem, err = S.mmap(nil, len, "read, write", "shared", fd, 0)
@@ -154,8 +151,10 @@ end
 
 Channel = {}
 
+local default_buffer_size = 32
 function create(name, type, size)
    local ret = {}
+   size = size or default_buffer_size
    ret.ring_buffer = create_ring_buffer(name, ffi.sizeof(type) * size)
    ret.type = type
    ret.type_ptr = ffi.typeof('$*', type)
@@ -177,7 +176,26 @@ function Channel:put(...)
    return put_bytes(self.ring_buffer, val, ffi.sizeof(self.type)) >= 0
 end
 
-function Channel:get()
+function Channel:pop()
    local ret = get_bytes(self.ring_buffer, ffi.sizeof(self.type))
    if ret then return ffi.cast(self.type_ptr, ret) end
+end
+
+function selftest()
+   print('selftest: channel')
+   local msg_t = ffi.typeof('struct { uint8_t a; uint8_t b; }')
+   local ch = create('test/control', msg_t, 16)
+   for i=1,16 do assert(ch:put({i, i+16})) end
+   assert(not ch:put({0,0}))
+   local function assert_pop(a, b)
+      local msg = assert(ch:pop())
+      assert(msg.a == a)
+      assert(msg.b == b)
+   end
+   assert_pop(1, 17)
+   assert(ch:put({17, 33}))
+   assert(not ch:put({0,0}))
+   for i=2,17 do assert_pop(i, i+16) end
+   assert(not ch:pop())
+   print('selftest: channel ok')
 end

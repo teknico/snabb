@@ -33,11 +33,10 @@ end
 
 function run(args)
    local pid, message = parse_args(args)
-   local channel = channel.open(pid, 'lwaftr/control',
-                                messages.lwaftr_message_t)
-   if channel:put(message) then main.exit(0) end
+   local ch = channel.open(pid, 'lwaftr/control', messages.lwaftr_message_t)
+   if ch:put(message) then main.exit(0) end
    local name = channel.root..'/'..tostring(pid)..'/channels/lwaftr/control'
    print(string.format(
-            'Channel lwaftr/control for %d is full; try again later.', pid))
+            'Channel lwaftr/control for PID %d is full; try again later.', pid))
    main.exit(1)
 end

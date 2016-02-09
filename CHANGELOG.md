@@ -1,5 +1,27 @@
 # Change Log
 
+## [2.0] - 2016-02-09
+
+A major release; see the documentation at
+https://github.com/Igalia/snabbswitch/tree/lwaftr_starfruit/src/program/lwaftr/doc
+for more details on how to use all of these features.  Besides
+bug-fixes, notable additions include:
+
+ * Support for large binding tables with millions of softwires.  The
+binding table will be compiled to a binary format as needed, and may be
+compiled to a binary file ahead of time.
+
+ * Support for virtualized operation using `virtio-net`.
+
+ * Support for discovery of next-hop L2 addresses on the B4 side via
+neighbor discovery.
+
+ * Support for ingress and egress filters specified in `pflang`, the
+packet filtering language of language of `tcpdump`.
+
+ * Ability to reload the binding table via a `snabb-lwaftr control`
+   command.
+
 ## [1.2] - 2015-12-10
 
 Fix bugs related to VLAN tagging on port-restricted IP addresses.

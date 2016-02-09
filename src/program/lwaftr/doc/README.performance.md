@@ -48,3 +48,21 @@ node 1 cpus: 6 7 8 9 10 11
 
 So for these we should run our binaries under `taskset -c CPU` to bind
 them to CPUs in the NUMA node 0.
+
+## Isolate CPUs
+
+Force the Linux kernel to use a limited amount of CPUs to schedule its
+processes, leaving all the other CPUs for running Snabb Switch.
+
+To isolate CPUs, boot your Linux kernel with the `isolcpus` parameter.
+Under NixOS, edit `/etc/nixos/configuration.nix` to add this parameter:
+
+```
+boot.kernelParams = [ "hugepagesz=1G" "hugepages=10" "isolcpus=1-5,7-11" ];
+```
+
+The line above prevents the kernel to schedule processes in CPUs ranging from
+1 to 5 and 7 to 11. That leaves CPUs 0 and 6 for the Linux kernel.
+
+After adding the `isolcpus` flag run `nixos-rebuild switch` and then reboot 
+your workstation to enable the changes.

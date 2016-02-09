@@ -1,4 +1,4 @@
-# The Binding Table
+# Binding tables
 
 A binding table is a collection of softwires (tunnels).  One endpoint
 of the softwire is in the AFTR and the other is in the B4.  A
@@ -101,6 +101,8 @@ border router, specify it by index:
     ...
   }
 ```
+
+## Compiling binding tables
 
 Internally, the lwAFTR uses the binding table in a compiled format.
 When a lwAFTR is started, it will automatically compile its binding

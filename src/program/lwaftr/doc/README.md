@@ -91,7 +91,8 @@ access to a NIC.
 ### Configuration
 
 There are a lot of configuration knobs!  See the
-[Configuration](./README.configuration.md) page, for more.
+[Configuration](./README.configuration.md) page, for general configuration, and 
+[Binding table](./README.bindingtable.md) page, for more on binding tables.
 
 ### Running the lwAFTR
 
@@ -107,7 +108,6 @@ you're getting all the lwAFTR can give.
 
 ## Tuning for production
 
-[Bindingtable](./README.bindingtable.md)
 
 [Breaking changes](./README.breaking_changes.md)
 

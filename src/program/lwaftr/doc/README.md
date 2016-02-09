@@ -81,8 +81,7 @@ it gets in reply, checking that the output is exactly what we expect.
 To run these tests:
 
 ```bash
-( cd src/program/lwaftr/tests/end-to-end; sudo ./end-to-end.sh )
-( cd src/program/lwaftr/tests/end-to-end; sudo ./end-to-end-vlan.sh )
+( cd src/program/lwaftr/tests/end-to-end; sudo ./end-to-end.sh && sudo ./end-to-end-vlan.sh )
 ```
 
 This test suite includes tests for traffic class mapping, hairpinning

@@ -35,11 +35,13 @@ slides](https://wingolog.org/pub/fosdem-2016-lwaftr-slides.pdf).
 The Snabb lwAFTR has a fully functional data plane that can encapsulate
 and decapsulate traffic at line rate over two 10 Gb NICs.  It supports
 arbitrarily large binding tables, IPv4 address sharing using the
-port-set ID scheme, and implements all of RFC 7596.
+port-set ID scheme, VLAN tagging, fragmentation, reassembly, NDP,
+and implements all of RFC 7596 including hairpinning and configurable
+ICMP error handling.
 
 An lwAFTR is just one part of a lw4o6 deployment.  The routers that
 directly serve the users (the customer premise equipment, or CPE boxes;
-like OpenWRT boxes) need to do the job of terminating a softwire to the
+e.g. running OpenWRT) need to do the job of terminating a softwire to the
 lwAFTR.  The piece of software on the CPE that does this is called the
 *B4*, or in the case of lw4o6 the *lwB4*.  Each B4 needs to be deployed
 with the IPv6 address of the lwAFTR, the IPv6 address of the B4, and the

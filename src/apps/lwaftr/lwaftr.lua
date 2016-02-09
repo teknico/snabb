@@ -539,8 +539,13 @@ local function from_b4(lwstate, pkt)
    local ipv4_src_port
    if get_ipv4_proto(tunneled_ipv4_header) == proto_icmp then
       local icmp_header = get_ipv4_payload(tunneled_ipv4_header)
-      local embedded_ipv4_header = get_icmp_payload(icmp_header)
-      ipv4_src_port = get_ipv4_payload_src_port(embedded_ipv4_header)
+      if (get_icmp_type(icmp_header) == constants.icmpv4_echo_reply or
+          get_icmp_type(icmp_header) == constants.icmpv4_echo_request) then
+         ipv4_source_port = get_icmpv4_echo_identifier(icmp_header)
+      else
+         local embedded_ipv4_header = get_icmp_payload(icmp_header)
+         ipv4_src_port = get_ipv4_payload_src_port(embedded_ipv4_header)
+      end
    else
       ipv4_src_port = get_ipv4_payload_src_port(tunneled_ipv4_header)
    end

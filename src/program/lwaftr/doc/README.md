@@ -55,13 +55,53 @@ configure it all at the command like with little text files :)
 
 ## Getting started
 
-[Build](./README.build.md)
+### Building the lwAFTR
 
-[Testing](./README.testing.md)
+Building the lwAFTR is pretty simple.  At a shell, just check out the
+right branch of Snabb Switch, type make, and you're done!
 
-[Configuration](./README.configuration.md)
+```bash
+git clone https://github.com/Igalia/snabbswitch.git
+cd snabbswitch
+git checkout lwaftr_starfruit
+make
+```
 
-[Running](./README.running.md)
+That's all!  You'll find a self-contained `snabb-lwaftr` binary in your
+current directory that you can copy whereever you like.
+
+We're working on merging to upstream snabb; follow the progress in issue
+#215.
+
+### Run the end-to-end tests
+
+The Snabb lwAFTR has a set of tests which run the lwAFTR, feeding it in
+packets on its IPv4 and IPv6 interfaces and recording the packets that
+it gets in reply, checking that the output is exactly what we expect.
+
+To run these tests:
+
+```bash
+( cd src/program/lwaftr/tests/end-to-end; sudo ./end-to-end.sh )
+( cd src/program/lwaftr/tests/end-to-end; sudo ./end-to-end-vlan.sh )
+```
+
+This test suite includes tests for traffic class mapping, hairpinning
+(including for ICMP), fragmentation, and so on.  They do not require
+access to a NIC.
+
+### Configuration
+
+There are a lot of configuration knobs!  See the
+[Configuration](./README.configuration.md) page, for more.
+
+### Running the lwAFTR
+
+You have a binding table and a configuration: great, you're finally
+ready to run the lwAFTR!  The only tricky part is making sure you're
+using the right network interfaces.  See [Running](./README.running.md),
+and be sure to check [Performance](./README.performance.md) to make sure
+you're getting all the lwAFTR can give.
 
 ## Troubleshooting
 

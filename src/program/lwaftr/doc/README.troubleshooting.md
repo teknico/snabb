@@ -4,7 +4,7 @@
 
 **Problem:**
 
-lwaftr performance looks like this:
+You run the lwAFTR with the `-v` argument to print out packet and bit rates, but it's all zeroes:
 
 ```
 Time (s),IPv4 RX MPPS,IPv4 RX Gbps,IPv4 TX MPPS,IPv4 TX Gbps,IPv6 RX MPPS,IPv6 RX Gbps,IPv6 TX MPPS,IPv6 TX Gbps

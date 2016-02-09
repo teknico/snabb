@@ -112,5 +112,5 @@ binding table ahead of time.
 
 Use the `snabb-lwaftr compile-binding-table` command to compile a
 binding table ahead of time.  If you do this, you can use the
-`snabb-lwaftr control *PID* reload` command to tell the Snabb process
+`snabb-lwaftr control PID reload` command to tell the Snabb process
 with the given *PID* to reload the table.

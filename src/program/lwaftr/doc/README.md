@@ -1,6 +1,6 @@
 # Snabb lwAFTR
 
-## About lightweight 4-over-6
+## What's a lwAFTR?
 
 Lightweight 4-over-6 (lw4o6) is an IPv6 transition mechanism, specified
 as [RFC 7596](https://tools.ietf.org/html/rfc7596).  An lwAFTR is the

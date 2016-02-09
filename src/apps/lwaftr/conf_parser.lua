@@ -147,7 +147,11 @@ end
 
 -- Returns a uint8_t[4].
 function Parser:parse_ipv4()
-   local addr, err = ipv4:pton(self:take_while('[%d.]'))
+   local addr_string = self:take_while('[%d.]')
+   if not addr_string or #addr_string == 0 then
+      self:error("IPv4 address expected")
+   end
+   local addr, err = ipv4:pton(addr_string)
    if not addr then self:error('%s', err) end
    return addr
 end
@@ -159,17 +163,24 @@ end
 
 -- Returns a uint8_t[16].
 function Parser:parse_ipv6()
-   local addr, err = ipv6:pton(self:take_while('[%x:]'))
+   local addr_string = self:take_while('[%x:]')
+   if not addr_string or #addr_string == 0 then
+      self:error("IPv6 address expected")
+   end
+   local addr, err = ipv6:pton(addr_string)
    if not addr then self:error('%s', err) end
    return addr
 end
 
 -- Returns a uint8_t[6].
 function Parser:parse_mac()
+   local addr_string = self:take_while('[%x:]')
+   if not addr_string or #addr_string == 0 then
+      self:error("Ethernet MAC address expected")
+   end
    -- FIXME: Unlike ipv6:pton, ethernet:pton raises an error if the
    -- address is invalid.
-   local success, addr_or_err = pcall(
-      ethernet.pton, ethernet, self:take_while('[%x:]'))
+   local success, addr_or_err = pcall(ethernet.pton, ethernet, addr_string)
    if not success then self:error('%s', addr_or_err) end
    return addr_or_err
 end

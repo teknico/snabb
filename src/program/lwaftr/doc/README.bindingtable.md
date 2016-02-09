@@ -8,6 +8,8 @@ encapsulated in IPv6 and sent to the AFTR; the AFTR does the reverse.
 The binding table is how the AFTR knows which B4 is associated with
 an incoming packet.
 
+## File structure
+
 There are three parts of a binding table: the PSID info map, the
 border router (BR) address table, and the softwire map.  Grammatically
 they appear in the file in the following order,:
@@ -23,6 +25,8 @@ they appear in the file in the following order,:
     ...
   }
 ```
+
+## PSID info map
 
 The PSID info map defines the set of IPv4 addresses that are provisioned
 by an lwAFTR.  It also defines the way in which those addresses are
@@ -57,6 +61,8 @@ The addresses may be specified as ranges or lists of ranges as well:
 The set of IPv4 address ranges specified in the PSID info map must be
 disjoint.
 
+## Border router addresses
+
 Next, the `br_addresses` clause lists the set of IPv6 addresses to
 associate with the lwAFTR.  These are the "border router" addresses.
 For a usual deployment there will be one main address and possibly some
@@ -69,6 +75,8 @@ additional ones.  For example:
     1E:2:2:2:2:2:2:af
   }
 ```
+
+## Softwires
 
 Finally, the `softwires` clause defines the set of softwires to
 provision.  Each softwire associates an IPv4 address, a PSID, and a B4

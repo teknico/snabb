@@ -1,5 +1,59 @@
 # Change Log
 
+## [1.2] - 2015-12-10
+
+Fix bugs related to VLAN tagging on port-restricted IP addresses.
+
+Fix bugs related to ICMPv6 and hairpinning.
+
+## [1.1] - 2015-11-25
+
+This release has breaking configuration file changes for VLAN tags and
+MTU sizes; see details below.
+
+This release fixes VLAN tagging for outgoing ICMP packets. Outgoing ICMP
+worked without VLANs, and now also works with them. Incoming ICMP
+support looked broken as a side effect of the outgoing ICMP messages
+with VLAN tags translated by the lwAftr not being valid. The primary
+test suite has been upgraded to be equally comprehensive with and
+without vlan support.
+
+This release contains fragmentation support improvements. It fixes a
+leak in IPv6 fragmentation reassembly, and enables IPv4 reassembly. For
+best performance, networks should be configured to avoid fragmentation
+as much as possible.
+
+This release also allows putting a ```debug = true,``` line into
+configuration files (ie, the same file where vlan tags are
+specified). If this is done, verbose debug information is shown,
+including at least one message every time a packet is received. This
+mode is purely for troubleshooting, not benchmarking.
+
+*Please note that there are two incompatible changes to the
+ configuration file format.*
+
+Firstly, the format for specifying VLAN tags has changed incompatibly.
+Instead of doing:
+
+```
+v4_vlan_tag=C.htonl(0x81000444),
+v6_vlan_tag=C.htonl(0x81000666),
+```
+
+the new format is:
+
+```
+v4_vlan_tag=0x444,
+v6_vlan_tag=0x666,
+```
+
+We apologize for the inconvenience.
+
+Secondly, the way to specify MTU sizes has also changed incompatibly.
+Before, the `ipv4_mtu` and `ipv6_mtu` implicitly included the size for
+the L2 header; now they do not, instead only measuring the packet size
+from the start of the IPv4 or IPv6 header, respectively.
+
 ## [1.0] - 2015-10-01
 
 ### Added

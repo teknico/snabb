@@ -102,23 +102,27 @@ using the right network interfaces.  See [Running](./README.running.md),
 and be sure to check [Performance](./README.performance.md) to make sure
 you're getting all the lwAFTR can give.
 
+The lwAFTR processes traffic between any NIC supported by Snabb, which
+mainly means Intel 82599 10 Gb adapters.  It's also possible to run on
+virtualized adapters using the `virtio-net` support that just landed in
+Snabb.  See [Virtualization](./README.virtualization.md), for more on how to
+get the lwAFTR working on virtualized network interfaces.
+
 ## Troubleshooting
 
 [Troubleshooting](./README.troubleshooting.md)
-
-## Tuning for production
-
-
-[Breaking changes](./README.breaking_changes.md)
-
-[Ndp](./README.ndp.md)
-
-[RFC Compliance](./README.rfccompliance.md)
-
-[Virtualization](./README.virtualization.md)
 
 ## Performance
 
 [Benchmarking](./README.benchmarking.md)
 
 [Performance](./README.performance.md)
+
+## Compatibility and interoperability
+
+[RFC Compliance](./README.rfccompliance.md)
+
+[Discovery of next-hop L2 addresses via NDP](./README.ndp.md)
+
+[Change Log](./CHANGELOG.md)
+

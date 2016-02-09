@@ -1,4 +1,4 @@
-# How to build snabb-lwaftr
+# How to build Snabb lwAFTR
 
 ## Fetch the sources
 

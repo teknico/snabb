@@ -1,40 +1,106 @@
 # The Binding Table
 
-Snabb-lwaftr alpha specifies binding tables in text files.
+A binding table is a collection of softwires (tunnels).  One endpoint
+of the softwire is in the AFTR and the other is in the B4.  A
+softwire provisions an IPv4 address (or a part of an IPv4 address) to
+a customer behind a B4.  The B4 arranges for all IPv4 traffic to be
+encapsulated in IPv6 and sent to the AFTR; the AFTR does the reverse.
+The binding table is how the AFTR knows which B4 is associated with
+an incoming packet.
 
-```bash
-$ cat binding.table
-{
- {'127:2:3:4:5:6:7:128', '178.79.150.233', 1, 100, '8:9:a:b:c:d:e:f'},
- {'127:11:12:13:14:15:16:128', '178.79.150.233', 101, 64000},
- {'127:22:33:44:55:66:77:128', '178.79.150.15', 5, 7000},
- {'127:24:35:46:57:68:79:128', '178.79.150.2', 7800, 7900, '1E:1:1:1:1:1:1:af'},
- {'127:14:25:36:47:58:69:128', '178.79.150.3', 4000, 5050, '1E:2:2:2:2:2:2:af'}
-}
+There are three parts of a binding table: the PSID info map, the
+border router (BR) address table, and the softwire map.  Grammatically
+they appear in the file in the following order,:
+
+```
+  psid_map {
+    ...
+  }
+  br_addresses {
+    ...
+  }
+  softwires {
+    ...
+  }
 ```
 
-The format is a [Lua table](http://www.lua.org/pil/2.5.html), containing more Lua tables.
-Each of these subtables (each shown on one line, above) has several parts. As an
-example, look at the following entry:
+The PSID info map defines the set of IPv4 addresses that are provisioned
+by an lwAFTR.  It also defines the way in which those addresses are
+shared, by specifying the "psid_length" and "shift" parameters for each
+address.  See RFC 7597 for more details on the PSID scheme for how to
+share IPv4 addresses.  The `psid_map` clause is composed of a list of
+entries, each of which specifying a set of IPv4 address and the PSID
+parameters.  In this and other clauses, newlines and other white space
+are insignificant.  For example:
 
-```lua
-{'127:24:35:46:57:68:79:128', '178.79.150.2', 7800, 7900, '1E:1:1:1:1:1:1:af'}
+``
+  psid_map {
+    1.2.3.4 { psid_length=10 }
+    5.6.7.8 { psid_length=5, shift=11 }
+    ...
+  }
+``
+
+An entry's `psid_length` and `shift` parameters must necessarily add up
+to 16, so it is sufficient to specify just one of them.  If neither are
+specified, they default to 0 and 16, respectively.
+
+The addresses may be specified as ranges or lists of ranges as well:
+
+```
+  psid_map {
+    1.2.3.4 { psid_length=10 }
+    2.0.0.0, 3.0.0.0, 4.0.0.0-4.1.2.3 { psid_length=7 }
+  }
 ```
 
-Where:
+The set of IPv4 address ranges specified in the PSID info map must be
+disjoint.
 
-* **127:24:35:46:57:68:79:128** is the IPv6 address of a B4.
-* **178.79.150.2** is the IPv4 address of the same B4 (not necessarily unique).
-* **7800** and **7900** are the start and end of the port range on that IPv4
-address that are assigned to that B4.
-* **1E:1:1:1:1:1:1:af** is the IPv6 address associated with the lwaftr for this
-binding table entry. It is optional, and if it is not specified, the default
-configured lwaftr IPv6 address is used.
+Next, the `br_addresses` clause lists the set of IPv6 addresses to
+associate with the lwAFTR.  These are the "border router" addresses.
+For a usual deployment there will be one main address and possibly some
+additional ones.  For example:
 
-In this example binding table, the default is used for the first three entries,
-and a custom address is specified for the last two entries.
+```
+  br_addresses {
+    8:9:a:b:c:d:e:f,
+    1E:1:1:1:1:1:1:af,
+    1E:2:2:2:2:2:2:af
+  }
+```
 
-Entries must be comma-separated. Having a comma after the last entry is optional.
+Finally, the `softwires` clause defines the set of softwires to
+provision.  Each softwire associates an IPv4 address, a PSID, and a B4
+address.  For example:
 
-The table is a Lua data structure, not a line-oriented format, but keeping
-one entry per line aids human readability.
+```
+  softwires {
+    { ipv4=178.79.150.233, psid=80, b4=127:2:3:4:5:6:7:128 }
+    { ipv4=178.79.150.233, psid=2300, b4=127:11:12:13:14:15:16:128 }
+    ...
+  }
+```
+
+By default, a softwire is associated with the first entry in
+`br_addresses` (`aftr=0`).  To associate the tunnel with a different
+border router, specify it by index:
+
+```
+  softwires {
+    { ipv4=178.79.150.233, psid=80, b4=127:2:3:4:5:6:7:128, aftr=0 }
+    { ipv4=178.79.150.233, psid=2300, b4=127:11:12:13:14:15:16:128, aftr=42 }
+    ...
+  }
+```
+
+Internally, the lwAFTR uses the binding table in a compiled format.
+When a lwAFTR is started, it will automatically compile its binding
+table if needed.  However for large tables (millions of entries) this
+can take a second or two, so it can still be useful to compile the
+binding table ahead of time.
+
+Use the `snabb-lwaftr compile-binding-table` command to compile a
+binding table ahead of time.  If you do this, you can use the
+`snabb-lwaftr control *PID* reload` command to tell the Snabb process
+with the given *PID* to reload the table.

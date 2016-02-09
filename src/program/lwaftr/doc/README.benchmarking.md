@@ -122,8 +122,8 @@ Loss: 481620 packets (22.109669%)
 Loss: 481560 packets (22.107158%)
 ```
 
-See the [Small binding table loadtest][benchmarks-v2.0/loadtest.txt] and the
-[Large binding table loadtest][benchmarks-v2.0/loadtest-small.txt] reports for
+See the [Small binding table loadtest](benchmarks-v2.0/loadtest.txt) and the
+[Large binding table loadtest](benchmarks-v2.0/loadtest-small.txt) reports for
 more information.
 
 ## Approximate benchmarking, without physical NICs

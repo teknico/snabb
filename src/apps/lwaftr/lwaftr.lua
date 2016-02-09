@@ -536,7 +536,19 @@ local function from_b4(lwstate, pkt)
    local ipv4_src_ip = get_ipv4_src_address(tunneled_ipv4_header)
    local ipv4_dst_ip = get_ipv4_dst_address(tunneled_ipv4_header)
    -- FIXME: Handle non-TCP, non-UDP payloads.
-   local ipv4_src_port = get_ipv4_payload_src_port(tunneled_ipv4_header)
+   local ipv4_src_port
+   if get_ipv4_proto(tunneled_ipv4_header) == proto_icmp then
+      local icmp_header = get_ipv4_payload(tunneled_ipv4_header)
+      if (get_icmp_type(icmp_header) == constants.icmpv4_echo_reply or
+          get_icmp_type(icmp_header) == constants.icmpv4_echo_request) then
+         ipv4_src_port = get_icmpv4_echo_identifier(icmp_header)
+      else
+         local embedded_ipv4_header = get_icmp_payload(icmp_header)
+         ipv4_src_port = get_ipv4_payload_src_port(embedded_ipv4_header)
+      end
+   else
+      ipv4_src_port = get_ipv4_payload_src_port(tunneled_ipv4_header)
+   end
 
    if in_binding_table(lwstate, ipv6_src_ip, ipv6_dst_ip, ipv4_src_ip, ipv4_src_port) then
       -- Is it worth optimizing this to change src_eth, src_ipv6, ttl,

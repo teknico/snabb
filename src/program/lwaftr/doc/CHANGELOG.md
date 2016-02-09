@@ -11,13 +11,18 @@ bug-fixes, notable additions include:
 binding table will be compiled to a binary format as needed, and may be
 compiled to a binary file ahead of time.
 
+ * The configuration file syntax and the binding table syntax have
+   changed once again.  We apologize for the inconvenience, but it
+   really is for the better: now, address-sharing softwires can be
+   specified directly using the PSID format.
+
  * Support for virtualized operation using `virtio-net`.
 
  * Support for discovery of next-hop L2 addresses on the B4 side via
-neighbor discovery.
+   neighbor discovery.
 
  * Support for ingress and egress filters specified in `pflang`, the
-packet filtering language of language of `tcpdump`.
+   packet filtering language of language of `tcpdump`.
 
  * Ability to reload the binding table via a `snabb-lwaftr control`
    command.

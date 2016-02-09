@@ -3,7 +3,7 @@
 # General
 
 SNABB_HOST_PATH=~/workspace/snabb_host
-SNABB_HOST_LWAFTR=$SNABB_HOST_PATH/src/program/snabb_lwaftr
+SNABB_HOST_LWAFTR=$SNABB_HOST_PATH/src/program/lwaftr
 
 # QEMU
 

@@ -8,24 +8,24 @@
 # * lwaftrctl vm       start|stop. Starts or stops virtual machine
 # * lwaftrctl lwaftr   start|stop. Starts or stops lwaftr inside virtual machine.
 #
-# A configuration file named 'lwaftrctl.conf' must exist in the current 
-# directory. This file contains all the variable definitions needed to run the 
+# A configuration file named 'lwaftrctl.conf' must exist in the current
+# directory. This file contains all the variable definitions needed to run the
 # available commands. See 'lwaftrctl.conf.example'.
 #
 # The usual workflow to run the script would be the following:
 #
-# * lwaftrctl snabbnfv start. 
+# * lwaftrctl snabbnfv start.
 #       Brings up NICs in host that will be used by virtual machine.
 #
-# * lwaftrctl vm start. 
-#       Brings up VM. After this step it should be possible to log into 
+# * lwaftrctl vm start.
+#       Brings up VM. After this step it should be possible to log into
 #       the VM: ssh igalia@10.21.21.2.
 #
 # * lwaftrctl lwaftr start.
-#       Starts lwaftr inside VM. This commands logs into VM and runs file 
+#       Starts lwaftr inside VM. This commands logs into VM and runs file
 #       "~/run_lwaftr.sh". See run_lwaftr.sh.example.
 #
-# Once the lwaftr is running within the VM, run 'snabb_lwaftr transient' from 
+# Once the lwaftr is running within the VM, run 'lwaftr transient' from
 # host to check everything is working fine.
 #
 # The command 'lwaftrctl all start', run all the steps above.

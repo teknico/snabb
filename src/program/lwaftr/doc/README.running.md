@@ -43,22 +43,21 @@ terrible.  See [README.benchmarking.md](README.benchmarking.md) and
 First, start the lwAFTR:
 
 ```
-$ sudo ./src/snabb-lwaftr run \
-    --conf tests/apps/lwaftr/data/icmp_on_fail.conf \
+$ sudo ./snabb lwaftr run \
+    --conf program/lwaftr/tests/data/icmp_on_fail.conf \
     --v4-pci 0000:01:00.1 --v6-pci 0000:02:00.1
 ```
 
 Then run a load generator:
 
 ```bash
-$ cd ${SNABB_LW_DIR} # The directory snabb-lwaftr is checked out into
-$ sudo ./bin/snabb-lwaftr transient  \
-    tests/apps/lwaftr/benchdata/ipv4-0550.pcap IPv4 0000:01:00.0 \
-    tests/apps/lwaftr/benchdata/ipv6-0550.pcap IPv6 0000:02:00.0 \
+$ cd src
+$ sudo ./snabb lwaftr loadtest  \
+    program/lwaftr/tests/benchdata/ipv4-0550.pcap IPv4 IPv6 0000:01:00.0 \
+    program/lwaftr/tests/benchdata/ipv6-0550.pcap IPv6 IPv4 0000:02:00.0
 ```
 
 The load generator will push packets on the IPv4 and IPv6 interfaces,
-ramping up from 0 Gbps to 10 Gbps (by default) and then coming back
-down.  It also measures the return traffic from the lwAFTR, and prints
-out all this information to the console in CSV format.  The load
-generator stops when the transient is done.
+ramping up from 0 Gbps to 10 Gbps (by default).  At each step it measures
+the return traffic from the lwAFTR, and prints out all this information
+to the console.  The load generator stops when the test is done.

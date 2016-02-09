@@ -4,14 +4,7 @@
 
 **Problem:**
 
-lwaftr performance looks like this:
-
-```
-v4_stats: 0.000 MPPS, 0.000 Gbps.
-v6_stats: 0.000 MPPS, 0.000 Gbps.
-```
-
-or like this:
+You run the lwAFTR with the `-v` argument to print out packet and bit rates, but it's all zeroes:
 
 ```
 Time (s),IPv4 RX MPPS,IPv4 RX Gbps,IPv4 TX MPPS,IPv4 TX Gbps,IPv6 RX MPPS,IPv6 RX Gbps,IPv6 TX MPPS,IPv6 TX Gbps
@@ -24,7 +17,8 @@ The lwaftr is running, but not receiving packets from the load generator.
 Check that the load generator is running, and that the physical wiring is
 between the interfaces the load generator is running on and the interfaces
 that the lwaftr is running on, and that the `--v4-pci` and `--v6-pci` arguments
-reflect the physical wiring, rather than being swapped.
+reflect the physical wiring, rather than being swapped.  If you have VLANs configured
+and you are using Intel NICs, make sure the VLAN IDs are correct.
 
 ## Failed to lock NIC
 
@@ -84,30 +78,3 @@ some require them to match a filename in
 `/sys/bus/pci/devices/`, such as `/sys/bus/pci/devices/0000:01:00.1` : in such
 cases, you must write _'0000:01:00.0'_, with the appropriate prefix (_'0000:'_,
 in this example).
-
-## Cannot make submodules
-
-**Problem:**
-
-Running `make submods` in the following:
-
-```
-Error: Submodule version mismatch
-luajit:
-  require: v2.0.4-306-gfe56522
-  found:   v2.0.4-330-g5feb63a
-ljsyscall:
-  require: v0.10-65-g7081d97
-  found:   v0.10-65-g7081d97
-pflua
-  require: 5e2c56baa0cf1ec471719bac83e2a99c4e2d5495
-  found:   5e2c56baa0cf1ec471719bac83e2a99c4e2d5495
-
-Please update your submodules like this:
-  make submods
-```
-
-**Resolution:**
-
-Unfortunately, `make submods` is broken on some branches.
-The easiest workaround is to `rm -f deps` and run make again if `make submods` fails.

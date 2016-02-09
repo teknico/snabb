@@ -28,7 +28,7 @@ at [FOSDEM 2016](http://fosdem.org/2016/)!  Eventually there will be a
 video here: https://fosdem.org/2016/schedule/event/snabbswitch/
 
 In the meantime, you might like to check out [the
-slides](https://wingolog.org/pub/fosdem-2016-lwaftr.pdf).
+slides](https://wingolog.org/pub/fosdem-2016-lwaftr-slides.pdf).
 
 ## Status
 
@@ -73,7 +73,7 @@ configure it all at the command like with little text files :)
 
 [Ndp](./README.ndp.md)
 
-[Rfccompliance](./README.rfccompliance.md)
+[RFC Compliance](./README.rfccompliance.md)
 
 [Virtualization](./README.virtualization.md)
 

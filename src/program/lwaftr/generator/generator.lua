@@ -33,10 +33,14 @@ function parse_args(args)
    function handlers.p(arg)
       opts.pcap = arg
    end
+   function handlers.v(arg)
+      opts.vlan_tag = assert(tonumber(arg), "VLAN tag must be a number")
+   end
    function handlers.h() show_usage(0) end
-   args = lib.dogetopt(args, handlers, "bin:m:s:p:h",
+   args = lib.dogetopt(args, handlers, "bin:m:s:v:p:h",
       { ["from-inet"]="i", ["from-b4"]="b", ["num-ips"]="n",
-        ["max-packets"]="m", ["packet-size"]="s", pcap="p", help="h" })
+        ["max-packets"]="m", ["packet-size"]="s", ["vlan-tag"]="v",
+        pcap="p", help="h" })
    return opts, args
 end
 
@@ -57,9 +61,9 @@ function run(args)
    end
 
    if opts.from_inet then
-      if #args < 1 or #args > 3 then 
+      if #args < 1 or #args > 3 then
          print("#args: "..#args)
-         show_usage(1) 
+         show_usage(1)
       end
       local start_inet, psid_len, _pciaddr = unpack(args)
       config.app(c, "generator", generator.from_inet, {
@@ -68,6 +72,7 @@ function run(args)
          max_packets = opts.max_packets,
          num_ips = opts.num_ips,
          packet_size = opts.packet_size,
+         vlan_tag = opts.vlan_tag,
       })
       pciaddr = _pciaddr
    end
@@ -82,6 +87,7 @@ function run(args)
          max_packets = opts.max_packets,
          num_ips = opts.num_ips,
          packet_size = opts.packet_size,
+         vlan_tag = opts.vlan_tag,
       })
       pciaddr = _pciaddr
    end

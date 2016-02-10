@@ -5,6 +5,7 @@ local fragmentv6 = require("apps.lwaftr.fragmentv6")
 local ndp = require("apps.lwaftr.ndp")
 local lwutil = require("apps.lwaftr.lwutil")
 local icmp = require("apps.lwaftr.icmp")
+local counter = require("core.counter")
 
 local ethernet = require("lib.protocol.ethernet")
 local ipv6 = require("lib.protocol.ipv6")
@@ -103,11 +104,13 @@ function Reassembler:push ()
          local status, maybe_pkt = fragmentv6.reassemble(frags, l2_size)
          if status == fragmentv6.REASSEMBLY_OK then
             self:clean_fragment_cache(frags)
+            counter.add(reassemble_ok)
             transmit(output, maybe_pkt)
          elseif status == fragmentv6.FRAGMENT_MISSING then
             -- Nothing useful to be done yet
          elseif status == fragmentv6.REASSEMBLY_INVALID then
             self:clean_fragment_cache(frags)
+            counter.add(reassemble_invalid)
             if maybe_pkt then -- This is an ICMP packet
                transmit(errors, maybe_pkt)
             end
@@ -156,6 +159,7 @@ function Fragmenter:push ()
          local unfragmentable_header_size = l2_size + ipv6_fixed_header_size
          local pkts = fragmentv6.fragment(pkt, unfragmentable_header_size,
                                           l2_size, mtu)
+         counter.add(fragment_ok)
          for i=1,#pkts do
             transmit(output, pkts[i])
          end

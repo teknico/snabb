@@ -8,6 +8,7 @@ local lwconf = require("apps.lwaftr.conf")
 local lwdebug = require("apps.lwaftr.lwdebug")
 local lwheader = require("apps.lwaftr.lwheader")
 local lwutil = require("apps.lwaftr.lwutil")
+local counter = require("core.counter")
 
 local channel = require("apps.lwaftr.channel")
 local messages = require("apps.lwaftr.messages")
@@ -174,6 +175,21 @@ end
 
 LwAftr = {}
 
+-- Counters for statistics.
+v4sentPacket    = counter.open("lwaftr_v4/sentPacket")
+v4sentByte      = counter.open("lwaftr_v4/sentByte")
+v4rcvdPacket    = counter.open("lwaftr_v4/rcvdPacket")
+v4rcvdByte      = counter.open("lwaftr_v4/rcvdByte")
+v4droppedPacket = counter.open("lwaftr_v4/droppedPacket")
+v4droppedByte   = counter.open("lwaftr_v4/droppedByte")
+
+v6sentPacket    = counter.open("lwaftr_v6/sentPacket")
+v6sentByte      = counter.open("lwaftr_v6/sentByte")
+v6rcvdPacket    = counter.open("lwaftr_v6/rcvdPacket")
+v6rcvdByte      = counter.open("lwaftr_v6/rcvdByte")
+v6droppedPacket = counter.open("lwaftr_v6/droppedPacket")
+v6droppedByte   = counter.open("lwaftr_v6/droppedByte")
+
 function LwAftr:new(conf)
    if type(conf) == 'string' then
       conf = lwconf.load_lwaftr_config(conf)
@@ -316,6 +332,8 @@ local function ipv6_encapsulate(lwstate, pkt, next_hdr_type, ipv6_src, ipv6_dst,
 
    if encapsulating_packet_with_df_flag_would_exceed_mtu(lwstate, pkt) then
       local icmp_pkt = cannot_fragment_df_packet_error(lwstate, pkt)
+      counter.add(v4droppedPacket)
+      counter.add(v4droppedByte, pkt.length)
       drop(pkt)
       return transmit(lwstate.o4, icmp_pkt)
    end
@@ -332,6 +350,8 @@ local function ipv6_encapsulate(lwstate, pkt, next_hdr_type, ipv6_src, ipv6_dst,
       print("encapsulated packet:")
       lwdebug.print_pkt(pkt)
    end
+   counter.add(v6sentPacket)
+   counter.add(v6sentByte, pkt.length)
    return transmit(lwstate.o6, pkt)
 end
 
@@ -386,8 +406,12 @@ local function from_inet(lwstate, pkt)
    -- Check incoming ICMP -first-, because it has different binding table lookup logic
    -- than other protocols.
    local ipv4_header = get_ethernet_payload(pkt)
+   counter.add(v4rcvdPacket)
+   counter.add(v4rcvdByte, pkt.length)
    if get_ipv4_proto(ipv4_header) == proto_icmp then
       if lwstate.policy_icmpv4_incoming == lwconf.policies['DROP'] then
+         counter.add(v4droppedPacket)
+         counter.add(v4droppedByte, pkt.length)
          return drop(pkt)
       else
          return icmpv4_incoming(lwstate, pkt)
@@ -404,6 +428,8 @@ local function from_inet(lwstate, pkt)
    local ipv6_dst, ipv6_src = binding_lookup_ipv4(lwstate, dst_ip, dst_port)
    if not ipv6_dst then
       -- Lookup failed.
+      counter.add(v4droppedPacket)
+      counter.add(v4droppedByte, pkt.length)
       if debug then print("lookup failed") end
       if lwstate.policy_icmpv4_outgoing == lwconf.policies['DROP'] then
          return drop(pkt)
@@ -517,9 +543,14 @@ local function from_b4(lwstate, pkt)
    local ipv6_header = get_ethernet_payload(pkt)
    local proto = get_ipv6_next_header(ipv6_header)
 
-   if proto ~= proto_ipv4 then
+   counter.add(v6rcvdPacket)
+   counter.add(v6rcvdByte, pkt.length)
+
+   if proto ~= proto_ipv4 then 
       if proto == proto_icmpv6 then
          if lwstate.policy_icmpv6_incoming == lwconf.policies['DROP'] then
+            counter.add(v6droppedPacket)
+            counter.add(v6droppedByte, pkt.length)
             return drop(pkt)
          else
             return icmpv6_incoming(lwstate, pkt)
@@ -566,12 +597,18 @@ local function from_b4(lwstate, pkt)
          packet.shiftleft(pkt, ipv6_fixed_header_size)
          write_eth_header(pkt.data, lwstate.aftr_mac_inet_side, lwstate.inet_mac,
                           n_ethertype_ipv4)
+         counter.add(v4sentPacket)
+         counter.add(v4sentByte, pkt.length)
          return transmit(lwstate.o4, pkt)
       end
    elseif lwstate.policy_icmpv6_outgoing == lwconf.policies['ALLOW'] then
       icmp_b4_lookup_failed(lwstate, pkt, ipv6_src_ip)
+      counter.add(v6droppedPacket)
+      counter.add(v6droppedByte, pkt.length)
       return drop(pkt)
    else
+      counter.add(v6droppedPacket)
+      counter.add(v6droppedByte, pkt.length)
       return drop(pkt)
    end
 end

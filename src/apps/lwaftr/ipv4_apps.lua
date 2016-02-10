@@ -4,6 +4,7 @@ local constants = require("apps.lwaftr.constants")
 local fragmentv4 = require("apps.lwaftr.fragmentv4")
 local lwutil = require("apps.lwaftr.lwutil")
 local icmp = require("apps.lwaftr.icmp")
+local counter = require("core.counter")
 
 local ethernet = require("lib.protocol.ethernet")
 local ipv4 = require("lib.protocol.ipv4")
@@ -33,6 +34,11 @@ local icmpv4_echo_reply = constants.icmpv4_echo_reply
 Reassembler = {}
 Fragmenter = {}
 ICMPEcho = {}
+
+local reassemble_ok      = counter.open("lwaftr_v4/reassemble_ok")
+local reassemble_invalid = counter.open("lwaftr_v4/reassemble_invalid")
+local fragment_ok        = counter.open("lwaftr_v4/fragment_ok")
+local fragment_forbidden = counter.open("lwaftr_v4/fragment_forbidden")
 
 function Reassembler:new(conf)
    local o = setmetatable({}, {__index=Reassembler})
@@ -91,11 +97,13 @@ function Reassembler:push ()
          if status == fragmentv4.REASSEMBLE_OK then
             -- Reassembly was successful
             self:clean_fragment_cache(frags)
+            counter.add(reassemble_ok)
             transmit(output, maybe_pkt)
          elseif status == fragmentv4.REASSEMBLE_MISSING_FRAGMENT then
             -- Nothing to do, just wait.
          elseif status == fragmentv4.REASSEMBLE_INVALID then
             self:clean_fragment_cache(frags)
+            counter.add(reassemble_invalid)
             if maybe_pkt then -- This is an ICMP packet
                transmit(errors, maybe_pkt)
             end
@@ -138,9 +146,11 @@ function Fragmenter:push ()
       if pkt.length > mtu + l2_size and is_ipv4(pkt, ethertype_offset) then
          local status, frags = fragmentv4.fragment(pkt, l2_size, mtu)
          if status == fragmentv4.FRAGMENT_OK then
+            counter.add(fragment_ok)
             for i=1,#frags do transmit(output, frags[i]) end
          else
             -- TODO: send ICMPv4 info if allowed by policy
+            counter.add(fragment_forbidden)
             packet.free(pkt)
          end
       else

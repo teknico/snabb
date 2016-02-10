@@ -1,5 +1,10 @@
 # Change Log
 
+## [2.1] - 2016-02-10
+
+A bug-fix release to fix VLAN tagging/untagging when offloading this
+operation to the 82599 hardware.
+
 ## [2.0] - 2016-02-09
 
 A major release; see the documentation at
@@ -8,8 +13,8 @@ for more details on how to use all of these features.  Besides
 bug-fixes, notable additions include:
 
  * Support for large binding tables with millions of softwires.  The
-binding table will be compiled to a binary format as needed, and may be
-compiled to a binary file ahead of time.
+   binding table will be compiled to a binary format as needed, and may
+   be compiled to a binary file ahead of time.
 
  * The configuration file syntax and the binding table syntax have
    changed once again.  We apologize for the inconvenience, but it

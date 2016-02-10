@@ -9,10 +9,10 @@ Options:
 
 Usage:
 
-generator --from-inet start_ipv4 psid_len PCI
-generator --from-b4   start_ipv4 start_b4 br psid_len PCI
+generator --from-inet lwaftr.conf start_ipv4 psid_len PCI
+generator --from-b4   lwaftr.conf start_ipv4 start_b4 br psid_len PCI
 
 Examples:
 
-generator --from-inet 193.5.1.100 6 <PCI>
-generator --from-b4   193.5.1.100 fc00:1:2:3:4:5:0:7e fc00::100 6 <PCI>
+generator --from-inet lwaftr.conf 193.5.1.100 6 <PCI>
+generator --from-b4   lwaftr.conf 193.5.1.100 fc00:1:2:3:4:5:0:7e fc00::100 6 <PCI>

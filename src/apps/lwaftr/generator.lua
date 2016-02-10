@@ -16,7 +16,6 @@ module(..., package.seeall)
 
 local lib = require("core.lib")
 local lwtypes = require("apps.lwaftr.lwtypes")
-local ether = require("lib.protocol.ethernet")
 local ipv4 = require("lib.protocol.ipv4")
 local ipv6 = require("lib.protocol.ipv6")
 local packet = require("core.packet")
@@ -73,6 +72,8 @@ function from_inet:new(conf)
       start_inet = start_inet,
       start_port = start_port,
       tx_packets = 0,
+      src_mac = conf.src_mac,
+      dst_mac = conf.dst_mac,
       vlan_tag = conf.vlan_tag and C.htons(conf.vlan_tag),
    }
    o = setmetatable(o, { __index = from_inet })
@@ -82,8 +83,8 @@ end
 
 function from_inet:master_packet()
    return ipv4_packet({
-      src_mac = ether:pton("29:99:99:99:99:99"),
-      dst_mac = ether:pton("2A:AA:AA:AA:AA:AA"),
+      src_mac = self.src_mac,
+      dst_mac = self.dst_mac,
       src_ip = ipv4:pton("10.10.10.1"),
       dst_ip = self.dst_ip,
       src_port = C.htons(12345),
@@ -231,6 +232,8 @@ function from_b4:new(conf)
       start_inet = start_inet,
       start_port = start_port,
       tx_packets = 0,
+      src_mac = conf.src_mac,
+      dst_mac = conf.dst_mac,
       vlan_tag = conf.vlan_tag and C.htons(conf.vlan_tag),
    }
    o = setmetatable(o, { __index = from_b4 })
@@ -240,8 +243,8 @@ end
 
 function from_b4:master_packet()
    local ipv4_pkt = ipv4_packet({
-      src_mac = ether:pton("29:99:99:99:99:99"),
-      dst_mac = ether:pton("2A:AA:AA:AA:AA:AA"),
+      src_mac = self.src_mac,
+      dst_mac = self.dst_mac,
       src_ip = self.src_ipv4,
       dst_ip = ipv4:pton("10.10.10.1"),
       src_port = C.htons(self.src_portv4),
@@ -250,8 +253,8 @@ function from_b4:master_packet()
       vlan_tag = self.vlan_tag,
    })
    return ipv6_encapsulate(ipv4_pkt, {
-      src_mac = ether:pton("29:99:99:99:99:99"),
-      dst_mac = ether:pton("2A:AA:AA:AA:AA:AA"),
+      src_mac = self.src_mac,
+      dst_mac = self.dst_mac,
       src_ip = self.start_b4,
       dst_ip = self.br,
       vlan_tag = self.vlan_tag,

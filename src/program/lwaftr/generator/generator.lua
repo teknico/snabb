@@ -34,13 +34,10 @@ function parse_args(args)
    function handlers.p(arg)
       opts.pcap = arg
    end
-   function handlers.v(arg)
-      opts.vlan_tag = assert(tonumber(arg), "VLAN tag must be a number")
-   end
    function handlers.h() show_usage(0) end
    args = lib.dogetopt(args, handlers, "bin:m:s:v:p:h",
       { ["from-inet"]="i", ["from-b4"]="b", ["num-ips"]="n",
-        ["max-packets"]="m", ["packet-size"]="s", ["vlan-tag"]="v",
+        ["max-packets"]="m", ["packet-size"]="s",
         pcap="p", help="h" })
    return opts, args
 end
@@ -76,7 +73,7 @@ function run(args)
          max_packets = opts.max_packets,
          num_ips = opts.num_ips,
          packet_size = opts.packet_size,
-         vlan_tag = opts.vlan_tag,
+         vlan_tag = conf.vlan_tagging and conf.v4_vlan_tag,
       })
       pciaddr = _pciaddr
    end
@@ -94,7 +91,7 @@ function run(args)
          max_packets = opts.max_packets,
          num_ips = opts.num_ips,
          packet_size = opts.packet_size,
-         vlan_tag = opts.vlan_tag,
+         vlan_tag = conf.vlan_tagging and conf.v6_vlan_tag,
       })
       pciaddr = _pciaddr
    end

@@ -138,7 +138,7 @@ function load_virt(c, conf, v4_nic_name, v4_nic_pci, v6_nic_name, v6_nic_pci)
       macaddr=ethernet:ntop(conf.aftr_mac_inet_side)})
    config.app(c, v6_nic_name, VirtioNet, {
       pciaddr=v6_nic_pci,
-      vlan=conf.vlan_tagging and conf.v4_vlan_tag,
+      vlan=conf.vlan_tagging and conf.v6_vlan_tag,
       macaddr = ethernet:ntop(conf.aftr_mac_b4_side)})
 
    link_source(c, v4_nic_name..'.tx', v6_nic_name..'.tx')

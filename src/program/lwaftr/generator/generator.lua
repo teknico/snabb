@@ -7,6 +7,7 @@ local config = require("core.config")
 local generator = require("apps.lwaftr.generator")
 local lib = require("core.lib")
 local stream = require("apps.lwaftr.stream")
+local lwconf = require("apps.lwaftr.conf")
 
 function show_usage(code)
    print(require("program.lwaftr.generator.README_inc"))
@@ -34,9 +35,10 @@ function parse_args(args)
       opts.pcap = arg
    end
    function handlers.h() show_usage(0) end
-   args = lib.dogetopt(args, handlers, "bin:m:s:p:h",
+   args = lib.dogetopt(args, handlers, "bin:m:s:v:p:h",
       { ["from-inet"]="i", ["from-b4"]="b", ["num-ips"]="n",
-        ["max-packets"]="m", ["packet-size"]="s", pcap="p", help="h" })
+        ["max-packets"]="m", ["packet-size"]="s",
+        pcap="p", help="h" })
    return opts, args
 end
 
@@ -57,24 +59,31 @@ function run(args)
    end
 
    if opts.from_inet then
-      if #args < 1 or #args > 3 then 
+      if #args < 1 or #args > 4 then
          print("#args: "..#args)
-         show_usage(1) 
+         show_usage(1)
       end
-      local start_inet, psid_len, _pciaddr = unpack(args)
+      local lwaftr_config, start_inet, psid_len, _pciaddr = unpack(args)
+      local conf = lwconf.load_lwaftr_config(lwaftr_config)
       config.app(c, "generator", generator.from_inet, {
+         dst_mac = conf.aftr_mac_inet_side,
+         src_mac = conf.inet_mac,
          start_inet = start_inet,
          psid_len = 6,
          max_packets = opts.max_packets,
          num_ips = opts.num_ips,
          packet_size = opts.packet_size,
+         vlan_tag = conf.vlan_tagging and conf.v4_vlan_tag,
       })
       pciaddr = _pciaddr
    end
    if opts.from_b4 then
-      if #args < 1 or #args > 5 then show_usage(1) end
-      local start_inet, start_b4, br, psid_len, _pciaddr = unpack(args)
+      if #args < 1 or #args > 6 then show_usage(1) end
+      local lwaftr_config, start_inet, start_b4, br, psid_len, _pciaddr = unpack(args)
+      local conf = lwconf.load_lwaftr_config(lwaftr_config)
       config.app(c, "generator", generator.from_b4, {
+         src_mac = conf.next_hop6_mac,
+         dst_mac = conf.aftr_mac_b4_side,
          start_inet = start_inet,
          start_b4 = start_b4,
          br = br,
@@ -82,6 +91,7 @@ function run(args)
          max_packets = opts.max_packets,
          num_ips = opts.num_ips,
          packet_size = opts.packet_size,
+         vlan_tag = conf.vlan_tagging and conf.v6_vlan_tag,
       })
       pciaddr = _pciaddr
    end

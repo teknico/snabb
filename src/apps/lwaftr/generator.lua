@@ -16,7 +16,6 @@ module(..., package.seeall)
 
 local lib = require("core.lib")
 local lwtypes = require("apps.lwaftr.lwtypes")
-local ether = require("lib.protocol.ethernet")
 local ipv4 = require("lib.protocol.ipv4")
 local ipv6 = require("lib.protocol.ipv6")
 local packet = require("core.packet")
@@ -29,13 +28,14 @@ local cast = ffi.cast
 local bitfield = lib.bitfield
 
 local DEFAULT_TTL = 255
+local VLAN_TPID = C.htons(0x8100)
 
 local ethernet_header_ptr_type = lwtypes.ethernet_header_ptr_type
+local ethernet_vlan_header_ptr_type = lwtypes.ethernet_vlan_header_ptr_type
 local ipv4_header_ptr_type = lwtypes.ipv4_header_ptr_type
 local ipv6_header_ptr_type = lwtypes.ipv6_header_ptr_type
 local udp_header_ptr_type = lwtypes.udp_header_ptr_type
 
-local ethernet_header_size = lwtypes.ethernet_header_size
 local ipv4_header_size = lwtypes.ipv4_header_size
 local ipv6_header_size = lwtypes.ipv6_header_size
 local udp_header_size = lwtypes.udp_header_size
@@ -72,6 +72,9 @@ function from_inet:new(conf)
       start_inet = start_inet,
       start_port = start_port,
       tx_packets = 0,
+      src_mac = conf.src_mac,
+      dst_mac = conf.dst_mac,
+      vlan_tag = conf.vlan_tag and C.htons(conf.vlan_tag),
    }
    o = setmetatable(o, { __index = from_inet })
    o.master_pkt = o:master_packet()
@@ -80,13 +83,14 @@ end
 
 function from_inet:master_packet()
    return ipv4_packet({
-      src_mac = ether:pton("29:99:99:99:99:99"),
-      dst_mac = ether:pton("2A:AA:AA:AA:AA:AA"),
+      src_mac = self.src_mac,
+      dst_mac = self.dst_mac,
       src_ip = ipv4:pton("10.10.10.1"),
       dst_ip = self.dst_ip,
       src_port = C.htons(12345),
       dst_port = C.htons(self.dst_port),
       packet_size = self.packet_size,
+      vlan_tag = self.vlan_tag,
    })
 end
 
@@ -94,6 +98,16 @@ function ipv4_packet(params)
    local p = packet.allocate()
 
    local ether_hdr = cast(ethernet_header_ptr_type, p.data)
+   local ethernet_header_size
+   if params.vlan_tag then
+      ether_hdr = cast(ethernet_vlan_header_ptr_type, p.data)
+      ether_hdr.vlan.tpid = VLAN_TPID
+      ether_hdr.vlan.tag = params.vlan_tag
+      ethernet_header_size = lwtypes.ethernet_vlan_header_size
+   else
+      ether_hdr = cast(ethernet_header_ptr_type, p.data)
+      ethernet_header_size = lwtypes.ethernet_header_size
+   end
    ether_hdr.ether_dhost = params.src_mac
    ether_hdr.ether_shost = params.dst_mac
    ether_hdr.ether_type = PROTO_IPV4
@@ -108,7 +122,7 @@ function ipv4_packet(params)
    ipv4_hdr.dst_ip = params.dst_ip
    ipv4_hdr.protocol = PROTO_UDP
 
-   local udp_hdr = cast(udp_header_ptr_type, p.data + (ethernet_header_size + 
+   local udp_hdr = cast(udp_header_ptr_type, p.data + (ethernet_header_size +
       ipv4_header_size))
    udp_hdr.src_port = params.src_port
    udp_hdr.dst_port = params.dst_port
@@ -134,6 +148,13 @@ end
 
 function from_inet:new_packet()
    local p = self.master_pkt
+
+   local ethernet_header_size
+   if self.vlan_tag then
+      ethernet_header_size = lwtypes.ethernet_vlan_header_size
+   else
+      ethernet_header_size = lwtypes.ethernet_header_size
+   end
 
    -- Change destination IPv4
    local ipv4_hdr = cast(ipv4_header_ptr_type, p.data + ethernet_header_size)
@@ -211,6 +232,9 @@ function from_b4:new(conf)
       start_inet = start_inet,
       start_port = start_port,
       tx_packets = 0,
+      src_mac = conf.src_mac,
+      dst_mac = conf.dst_mac,
+      vlan_tag = conf.vlan_tag and C.htons(conf.vlan_tag),
    }
    o = setmetatable(o, { __index = from_b4 })
    o.master_pkt = o:master_packet()
@@ -219,30 +243,48 @@ end
 
 function from_b4:master_packet()
    local ipv4_pkt = ipv4_packet({
-      src_mac = ether:pton("29:99:99:99:99:99"),
-      dst_mac = ether:pton("2A:AA:AA:AA:AA:AA"),
+      src_mac = self.src_mac,
+      dst_mac = self.dst_mac,
       src_ip = self.src_ipv4,
       dst_ip = ipv4:pton("10.10.10.1"),
       src_port = C.htons(self.src_portv4),
       dst_port = C.htons(12345),
       packet_size = self.packet_size,
+      vlan_tag = self.vlan_tag,
    })
    return ipv6_encapsulate(ipv4_pkt, {
-      src_mac = ether:pton("29:99:99:99:99:99"),
-      dst_mac = ether:pton("2A:AA:AA:AA:AA:AA"),
+      src_mac = self.src_mac,
+      dst_mac = self.dst_mac,
       src_ip = self.start_b4,
       dst_ip = self.br,
+      vlan_tag = self.vlan_tag,
    })
 end
 
 function ipv6_encapsulate(ipv4_pkt, params)
    local p = assert(ipv4_pkt)
 
+   -- IPv4 packet is tagged
+   local ethernet_header_size 
+   if params.vlan_tag then
+      ethernet_header_size = lwtypes.ethernet_vlan_header_size
+   else
+      ethernet_header_size = lwtypes.ethernet_header_size
+   end
+
    local payload_length = p.length - ethernet_header_size
    local dscp_and_ecn = p.data[ethernet_header_size + IPV4_DSCP_AND_ECN_OFFSET]
    packet.shiftright(p, ipv6_header_size)
 
-   local eth_hdr = cast(ethernet_header_ptr_type, p.data)
+   -- IPv6 packet is tagged
+   if params.vlan_tag then
+      eth_hdr = cast(ethernet_vlan_header_ptr_type, p.data)
+      eth_hdr.vlan.tag = params.vlan_tag
+      ethernet_header_size = lwtypes.ethernet_vlan_header_size
+   else
+      eth_hdr = cast(ethernet_header_ptr_type, p.data)
+      ethernet_header_size = lwtypes.ethernet_header_size
+   end
    eth_hdr.ether_dhost = params.dst_mac
    eth_hdr.ether_shost = params.src_mac
    eth_hdr.ether_type = PROTO_IPV6
@@ -276,6 +318,14 @@ end
 
 function from_b4:new_packet()
    local ipv6 = self.master_pkt
+
+   -- IPv6 packet is tagged
+   local ethernet_header_size
+   if self.vlan_tag then
+      ethernet_header_size = lwtypes.ethernet_vlan_header_size
+   else
+      ethernet_header_size = lwtypes.ethernet_header_size
+   end
 
    -- Set IPv6 source address
    local ipv6_hdr = cast(ipv6_header_ptr_type, ipv6.data + ethernet_header_size)

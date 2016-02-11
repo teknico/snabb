@@ -118,12 +118,12 @@ function load_phy(c, conf, v4_nic_name, v4_nic_pci, v6_nic_name, v6_nic_pci)
 
    config.app(c, v4_nic_name, Intel82599, {
       pciaddr=v4_nic_pci,
-      vmdq=conf.vmdq,
+      vmdq=conf.vlan_tagging,
       vlan=conf.vlan_tagging and conf.v4_vlan_tag,
       macaddr=ethernet:ntop(conf.aftr_mac_inet_side)})
    config.app(c, v6_nic_name, Intel82599, {
       pciaddr=v6_nic_pci,
-      vmdq=conf.vmdq,
+      vmdq=conf.vlan_tagging,
       vlan=conf.vlan_tagging and conf.v6_vlan_tag,
       macaddr = ethernet:ntop(conf.aftr_mac_b4_side)})
 

@@ -36,6 +36,7 @@ end
 function parse_args(args)
    if #args == 0 then show_usage(1) end
    local conf_file, v4_pci, v6_pci
+   local ring_buffer_size
    local opts = { verbosity = 0 }
    local handlers = {}
    function handlers.v () opts.verbosity = opts.verbosity + 1 end
@@ -70,11 +71,27 @@ function parse_args(args)
          fatal(("Couldn't locate NIC with PCI address '%s'"):format(v6_pci))
       end
    end
+   function handlers.r (arg)
+      ring_buffer_size = tonumber(arg)
+      if not ring_buffer_size then fatal("bad ring size: " .. arg) end
+      if ring_buffer_size > 32*1024 then
+         fatal("ring size too large for hardware: " .. ring_buffer_size)
+      end
+      if math.log(ring_buffer_size)/math.log(2) % 1 ~= 0 then
+         fatal("ring size is not a power of two: " .. arg)
+      end
+   end
    function handlers.h() show_usage(0) end
-   lib.dogetopt(args, handlers, "b:c:n:m:vD:hi",
+   lib.dogetopt(args, handlers, "b:c:n:m:vD:hir:",
       { conf = "c", ["v4-pci"] = "n", ["v6-pci"] = "m",
         verbose = "v", duration = "D", help = "h",
-        virtio = "i" })
+        virtio = "i", ["ring-buffer-size"] = "r" })
+   if ring_buffer_size ~= nil then
+      if opts.virtio_net then
+         fatal("setting --ring-buffer-size does not work with --virtio")
+      end
+      require('apps.intel.intel10g').num_descriptors = ring_buffer_size
+   end
    return opts, conf_file, v4_pci, v6_pci
 end
 
@@ -91,9 +108,7 @@ function run(args)
    engine.configure(c)
 
    if opts.verbosity >= 2 then
-      local function lnicui_info()
-         app.report_apps()
-      end
+      local function lnicui_info() engine.report_apps() end
       local t = timer.new("report", lnicui_info, 1e9, 'repeating')
       timer.activate(t)
    end

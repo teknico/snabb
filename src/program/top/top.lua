@@ -117,7 +117,7 @@ function print_global_metrics (new_stats, last_stats)
              {float_s(frees / 1000), float_s(bytes / (1000^3)), tostring(breaths)})
 end
 
-local link_metrics_row = {31, 7, 7, 7, 7, 7}
+local link_metrics_row = {31, 7, 7, 7, 7, 11}
 function print_link_metrics (new_stats, last_stats)
    print_row(link_metrics_row,
              {"Links (rx/tx/txdrop in Mpps)", "rx", "tx", "rxGb", "txGb", "txdrop"})
@@ -131,8 +131,8 @@ function print_link_metrics (new_stats, last_stats)
          print_row(link_metrics_row,
                    {linkspec,
                     float_s(rx / 1e6), float_s(tx / 1e6),
-                    float_s(rxbytes / (1000^3)), float_s(txbytes / (1000^3)),
-                    float_s(drop / 1e6)})
+                    float_s(8 * rxbytes / (1000^3)), float_s(8 * txbytes / (1000^3)),
+                    float_l(drop / 1e6)})
       end
    end
 end
@@ -151,4 +151,8 @@ end
 
 function float_s (n)
    return ("%.2f"):format(n)
+end
+
+function float_l (n)
+   return ("%.6f"):format(n)
 end

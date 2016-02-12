@@ -22,8 +22,9 @@ local function load_phy(c, nic_id, interface)
   if not device_info then 
     fatal(("Couldn't find device info for PCI address '%s'"):format(interface.pci))
   end
+  local snmp = { directory = "/tmp" }
   config.app(c, nic_id, require(device_info.driver).driver, 
-  {pciaddr = interface.pci, vmdq = true, vlan = vlan, 
+  {pciaddr = interface.pci, vmdq = true, vlan = vlan, snmp = snmp,
   macaddr = interface.mac_address, mtu = interface.mtu})
 
 end

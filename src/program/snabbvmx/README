@@ -1,0 +1,10 @@
+Usage:
+  snabbvmx lwaftr
+  snabbvmx top
+  snabbvmx monitor
+  snabbvmx generator
+
+Use --help for per-command usage.
+
+Example:
+    snabbvmx lwaftr --help

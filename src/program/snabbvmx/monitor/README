@@ -1,0 +1,6 @@
+Usage:
+  monitor [OPTIONS] [ipv4 address]
+
+  -h, --help
+                             Print usage information.
+

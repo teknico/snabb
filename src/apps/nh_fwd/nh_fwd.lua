@@ -120,6 +120,10 @@ function nh_fwd:new(arg)
   end
   print(string.format("%s: cache_refresh_interval set to %d seconds",description, cache_refresh_interval))
 
+  if nil == mac_address then
+    error("need mac_address!")
+  end
+
   local o = {
     mac_address = mac_address,
     next_hop_mac = next_hop_mac,
@@ -165,8 +169,8 @@ function nh_fwd:push ()
         end
       end
 
-      -- only use a cached, non-empty, mac address 
-      if C.memcmp(next_hop_mac, n_next_hop_mac_empty, 6) ~= 0 then
+      -- only use a cached, non-empty, mac address  (4 digits compare is enough)
+      if C.memcmp(next_hop_mac, n_next_hop_mac_empty, 4) ~= 0 then
         -- set nh mac and send the packet out the wire
         ffi.copy(eth_hdr.ether_dhost, next_hop_mac, 6)
         transmit(output_wire, pkt)
@@ -206,17 +210,11 @@ function nh_fwd:push ()
       end
       --]]
 
-      if C.memcmp(eth_hdr.ether_dhost, mac_address, 6) == 0 then
-        if ethertype == n_ethertype_ipv4 and ipv4_address and C.memcmp(ipv4_hdr.dst_ip, ipv4_address, 4) ~= 0 then
-          transmit(output_service, pkt)
-        elseif ethertype == n_ethertype_ipv6 and 
-          (ipv6_hdr.next_header == n_ipencap or ipv6_hdr.next_header == n_ipfragment) then
-          transmit(output_service, pkt)
-        elseif output_vmx then
-          transmit(output_vmx, pkt)
-        else
-          packet.free(pkt)
-        end
+      if ethertype == n_ethertype_ipv4 and ipv4_address and C.memcmp(ipv4_hdr.dst_ip, ipv4_address, 4) ~= 0 then
+        transmit(output_service, pkt)
+      elseif ethertype == n_ethertype_ipv6 and 
+        (ipv6_hdr.next_header == n_ipencap or ipv6_hdr.next_header == n_ipfragment) then
+        transmit(output_service, pkt)
       elseif output_vmx then
         transmit(output_vmx, pkt)
       else

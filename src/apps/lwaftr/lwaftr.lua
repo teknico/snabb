@@ -386,15 +386,31 @@ local function encapsulate_and_transmit(lwstate, pkt, ipv6_dst, ipv6_src)
    return transmit(lwstate.o6, pkt)
 end
 
-local function enqueue_encapsulation(lwstate, pkt, ipv4, port)
-   -- TODO: Switch to streaming lookup interface.
-   local ipv6_dst, ipv6_src = binding_lookup_ipv4(lwstate, ipv4, port)
-   if not ipv6_dst then
-      -- Lookup failed.
-      if debug then print("lookup failed") end
-      return drop_ipv4_packet_to_unreachable_host(lwstate, pkt)
+local function enqueue_lookup(lwstate, pkt, ipv4, port, flush)
+   local bt = lwstate.binding_table
+   if bt:enqueue_lookup(pkt, ipv4, port) then
+      flush(lwstate)
    end
-   return encapsulate_and_transmit(lwstate, pkt, ipv6_dst, ipv6_src)
+end
+
+local function flush_encapsulation(lwstate)
+   local bt = lwstate.binding_table
+   bt:process_lookup_queue()
+   for n = 0, bt.lookup_queue_len - 1 do
+      local pkt, ipv6_dst, ipv6_src = bt:get_enqueued_lookup(n)
+      if ipv6_dst then
+         encapsulate_and_transmit(lwstate, pkt, ipv6_dst, ipv6_src)
+      else
+         -- Lookup failed.
+         if debug then print("lookup failed") end
+         drop_ipv4_packet_to_unreachable_host(lwstate, pkt)
+      end
+   end
+   bt:reset_lookup_queue()
+end
+
+local function enqueue_encapsulation(lwstate, pkt, ipv4, port)
+   enqueue_lookup(lwstate, pkt, ipv4, port, flush_encapsulation)
 end
 
 local function icmpv4_incoming(lwstate, pkt)
@@ -646,5 +662,5 @@ function LwAftr:push ()
          drop(pkt)
       end
    end
-
+   flush_encapsulation(self)
 end

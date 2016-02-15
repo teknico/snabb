@@ -468,7 +468,7 @@ local function transmit_translated_icmpv4_reply(lwstate, pkt)
    local embedded_ipv4_src_ip = get_ipv4_src_address(embedded_ipv4_header)
    if lwstate.hairpinning and ipv4_in_binding_table(lwstate, embedded_ipv4_src_ip) then
       if debug then print("Hairpinning ICMPv4 mapped from ICMPv6") end
-      return icmpv4_incoming(lwstate, pkt) -- to B4
+      return transmit(lwstate.input.v4, pkt) -- to B4
    else
       return transmit(lwstate.o4, pkt)
    end
@@ -560,7 +560,7 @@ local function from_b4(lwstate, pkt)
          write_eth_header(pkt.data, lwstate.next_hop6_mac, lwstate.aftr_mac_b4_side,
                           n_ethertype_ipv4)
          -- TODO:  refactor so this doesn't actually seem to be from the internet?
-         return from_inet(lwstate, pkt)
+         return transmit(lwstate.input.v4, pkt)
       else
          -- Remove IPv6 header.
          packet.shiftleft(pkt, ipv6_fixed_header_size)
@@ -601,9 +601,22 @@ function LwAftr:push ()
       end
    end
 
+   for _=1,link.nreadable(i6) do
+      -- Decapsulate incoming IPv6 packets from the B4 interface and
+      -- push them out the V4 link, unless they need hairpinning, in
+      -- which case enqueue them on the incoming V4 link.  Drop anything
+      -- that's not IPv6.
+      local pkt = receive(i6)
+      if is_ipv6(pkt) then
+         from_b4(self, pkt)
+      else
+         drop(pkt)
+      end
+   end
+
    for _=1,link.nreadable(i4) do
-      -- Encapsulate incoming IPv4 packets from the internet interface.
-      -- Drop anything that's not IPv4.
+      -- Encapsulate incoming IPv4 packets, including hairpinned
+      -- packets.  Drop anything that's not IPv4.
       local pkt = receive(i4)
       if is_ipv4(pkt) then
          from_inet(self, pkt)
@@ -612,14 +625,4 @@ function LwAftr:push ()
       end
    end
 
-   for _=1,link.nreadable(i6) do
-      -- Decapsulate or hairpin incoming IPv6 packets from the B4
-      -- interface.  Drop anything that's not IPv6.
-      local pkt = receive(i6)
-      if is_ipv6(pkt) then
-         from_b4(self, pkt)
-      else
-         drop(pkt)
-      end
-   end
 end

@@ -25,6 +25,7 @@ local uint32_ptr_t = ffi.typeof('uint32_t*')
 local v4v6_mirror = shm.map("v4v6_mirror", "struct { uint32_t ipv4; }")
 
 local function mirror_v6_packet (pkt, mirror, ipv4_num)
+  local ipv4_num = v4v6_mirror.ipv4
   if ffi.cast(uint32_ptr_t, pkt.data + o_ipv6_src_ipv4)[0] == ipv4_num or
     ffi.cast(uint32_ptr_t, pkt.data + o_ipv6_dst_ipv4)[0] == ipv4_num then
     if link.nwritable(mirror) then
@@ -34,6 +35,7 @@ local function mirror_v6_packet (pkt, mirror, ipv4_num)
 end
 
 local function mirror_v4_packet (pkt, mirror)
+  local ipv4_num = v4v6_mirror.ipv4
   if ffi.cast(uint32_ptr_t, pkt.data + o_src_ipv4)[0] == ipv4_num or
     ffi.cast(uint32_ptr_t, pkt.data + o_dst_ipv4)[0] == ipv4_num then
     if link.nwritable(mirror) then

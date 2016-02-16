@@ -282,8 +282,8 @@ local function drop_ipv4_packet_to_unreachable_host(lwstate, pkt, to_ip)
    end
 
    if get_ipv4_proto(get_ethernet_payload(pkt)) == proto_icmp then
-      -- FIXME: We should send dst/host unreachable for ICMP
-      -- messages, unless the ICMP message is an error message.
+      -- RFC 7596 section 8.1 requires us to silently drop incoming
+      -- ICMPv4 messages that don't match the binding table.
       return drop(pkt)
    end
 

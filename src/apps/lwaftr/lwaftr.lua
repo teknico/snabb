@@ -301,13 +301,20 @@ end
 
 -- ICMPv6 type 1 code 5, as per RFC 7596.
 -- The source (ipv6, ipv4, port) tuple is not in the table.
-local function icmp_b4_lookup_failed(lwstate, pkt, to_ip)
+local function drop_ipv6_packet_from_bad_softwire(lwstate, pkt)
+   if lwstate.policy_icmpv6_outgoing == lwconf.policies['DROP'] then
+      -- ICMP error messages off by policy; silently drop.
+      return drop(pkt)
+   end
+
+   local ipv6_header = get_ethernet_payload(pkt)
+   local ipv6_src_addr = get_ipv6_src_address(ipv6_header)
    local icmp_config = {type = constants.icmpv6_dst_unreachable,
                         code = constants.icmpv6_failed_ingress_egress_policy,
                        }
-   local b4fail_icmp = icmp.new_icmpv6_packet(lwstate.aftr_mac_b4_side, lwstate.next_hop6_mac,
-                                              lwstate.aftr_ipv6_ip, to_ip, pkt,
-                                              ethernet_header_size, icmp_config)
+   local b4fail_icmp = icmp.new_icmpv6_packet(
+      lwstate.aftr_mac_b4_side, lwstate.next_hop6_mac, lwstate.aftr_ipv6_ip,
+      ipv6_src_addr, pkt, ethernet_header_size, icmp_config)
    drop(pkt)
    transmit_icmpv6_with_rate_limit(lwstate.o6, b4fail_icmp)
 end
@@ -545,6 +552,32 @@ local function icmpv6_incoming(lwstate, pkt)
    end
 end
 
+local function flush_decapsulation(lwstate)
+   local bt = lwstate.binding_table
+   bt:process_lookup_queue()
+   for n = 0, bt.lookup_queue_len - 1 do
+      local pkt, b4_addr, br_addr = bt:get_enqueued_lookup(n)
+
+      local ipv6_header = get_ethernet_payload(pkt)
+      if (b4_addr
+          and ipv6_equals(get_ipv6_src_address(ipv6_header), b4_addr)
+          and ipv6_equals(get_ipv6_dst_address(ipv6_header), br_addr)) then
+         -- Source softwire is valid; decapsulate and forward.
+         packet.shiftleft(pkt, ipv6_fixed_header_size)
+         write_eth_header(pkt.data, lwstate.aftr_mac_inet_side, lwstate.inet_mac,
+                          n_ethertype_ipv4)
+         transmit_ipv4(lwstate, pkt)
+      else
+         drop_ipv6_packet_from_bad_softwire(lwstate, pkt)
+      end
+   end
+   bt:reset_lookup_queue()
+end
+
+local function enqueue_decapsulation(lwstate, pkt, ipv4, port)
+   enqueue_lookup(lwstate, pkt, ipv4, port, flush_decapsulation)
+end
+
 -- FIXME: Verify that the packet length is big enough?
 local function from_b4(lwstate, pkt)
    local ipv6_header = get_ethernet_payload(pkt)
@@ -563,11 +596,7 @@ local function from_b4(lwstate, pkt)
       end
    end
 
-   local ipv6_src_ip = get_ipv6_src_address(ipv6_header)
-   local ipv6_dst_ip = get_ipv6_dst_address(ipv6_header)
    local tunneled_ipv4_header = get_ipv6_payload(ipv6_header)
-   local ipv4_src_ip = get_ipv4_src_address(tunneled_ipv4_header)
-   -- FIXME: Handle non-TCP, non-UDP payloads.
    local port
    if get_ipv4_proto(tunneled_ipv4_header) == proto_icmp then
       local icmp_header = get_ipv4_payload(tunneled_ipv4_header)
@@ -599,19 +628,8 @@ local function from_b4(lwstate, pkt)
       port = get_ipv4_payload_src_port(tunneled_ipv4_header)
    end
 
-   if in_binding_table(lwstate, ipv6_src_ip, ipv6_dst_ip, ipv4_src_ip, port) then
-      -- Incoming packet is from a valid softwire; decapsulate and
-      -- forward.
-      packet.shiftleft(pkt, ipv6_fixed_header_size)
-      write_eth_header(pkt.data, lwstate.aftr_mac_inet_side, lwstate.inet_mac,
-                       n_ethertype_ipv4)
-      return transmit_ipv4(lwstate, pkt)
-   elseif lwstate.policy_icmpv6_outgoing == lwconf.policies['ALLOW'] then
-      icmp_b4_lookup_failed(lwstate, pkt, ipv6_src_ip)
-      return drop(pkt)
-   else
-      return drop(pkt)
-   end
+   local ipv4 = get_ipv4_src_address(tunneled_ipv4_header)
+   return enqueue_decapsulation(lwstate, pkt, ipv4, port)
 end
 
 function LwAftr:push ()
@@ -651,6 +669,7 @@ function LwAftr:push ()
          drop(pkt)
       end
    end
+   flush_decapsulation(self)
 
    for _=1,link.nreadable(i4) do
       -- Encapsulate incoming IPv4 packets, including hairpinned

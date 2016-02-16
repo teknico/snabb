@@ -284,13 +284,15 @@ end
 
 -- ICMPv6 type 1 code 5, as per RFC 7596.
 -- The source (ipv6, ipv4, port) tuple is not in the table.
-local function icmp_b4_lookup_failed(lwstate, pkt, to_ip)
+local function icmp_b4_lookup_failed(lwstate, pkt)
+   local ipv6_header = get_ethernet_payload(pkt)
+   local ipv6_src_addr = get_ipv6_src_address(ipv6_header)
    local icmp_config = {type = constants.icmpv6_dst_unreachable,
                         code = constants.icmpv6_failed_ingress_egress_policy,
                        }
-   local b4fail_icmp = icmp.new_icmpv6_packet(lwstate.aftr_mac_b4_side, lwstate.next_hop6_mac,
-                                              lwstate.aftr_ipv6_ip, to_ip, pkt,
-                                              ethernet_header_size, icmp_config)
+   local b4fail_icmp = icmp.new_icmpv6_packet(
+      lwstate.aftr_mac_b4_side, lwstate.next_hop6_mac, lwstate.aftr_ipv6_ip,
+      ipv6_src_addr, pkt, ethernet_header_size, icmp_config)
    transmit_icmpv6_with_rate_limit(lwstate.o6, b4fail_icmp)
 end
 
@@ -323,12 +325,29 @@ local function cannot_fragment_df_packet_error(lwstate, pkt)
                                  ethernet_header_size, icmp_config)
 end
 
--- Given a packet containing IPv4 and Ethernet, encapsulate the IPv4 portion.
-local function ipv6_encapsulate(lwstate, pkt, next_hdr_type, ipv6_src, ipv6_dst,
-                                 ether_src, ether_dst)
-   -- TODO: decrement the IPv4 ttl as this is part of forwarding
-   -- TODO: do not encapsulate if ttl was already 0; send icmp
+local function encapsulate_and_transmit(lwstate, pkt, ipv6_dst, ipv6_src)
+   -- Do not encapsulate packets that now have a ttl of zero or wrapped around
+   local ttl = decrement_ttl(pkt)
+   if ttl == 0 or ttl == 255 then
+      if lwstate.policy_icmpv4_outgoing == lwconf.policies['DROP'] then
+         return
+      end
+      local ipv4_header = get_ethernet_payload(pkt)
+      local dst_ip = get_ipv4_src_address_ptr(ipv4_header)
+      local icmp_config = {type = constants.icmpv4_time_exceeded,
+                           code = constants.icmpv4_ttl_exceeded_in_transit,
+                           }
+      local ttl0_icmp =  icmp.new_icmpv4_packet(lwstate.aftr_mac_inet_side, lwstate.inet_mac,
+                                                lwstate.aftr_ipv4_ip, dst_ip, pkt,
+                                                ethernet_header_size, icmp_config)
+      return transmit(lwstate.o4, ttl0_icmp)
+   end
+
    if debug then print("ipv6", ipv6_src, ipv6_dst) end
+
+   local next_hdr_type = proto_ipv4
+   local ether_src = lwstate.aftr_mac_b4_side
+   local ether_dst = lwstate.next_hop6_mac
 
    if encapsulating_packet_with_df_flag_would_exceed_mtu(lwstate, pkt) then
       local icmp_pkt = cannot_fragment_df_packet_error(lwstate, pkt)
@@ -353,6 +372,44 @@ local function ipv6_encapsulate(lwstate, pkt, next_hdr_type, ipv6_src, ipv6_dst,
    counter.add(v6sentPacket)
    counter.add(v6sentByte, pkt.length)
    return transmit(lwstate.o6, pkt)
+end
+
+local function enqueue_lookup(lwstate, pkt, ipv4, port, flush)
+   local bt = lwstate.binding_table
+   if bt:enqueue_lookup(pkt, ipv4, port) then
+      flush(lwstate)
+   end
+end
+
+local function flush_encapsulation(lwstate)
+   local bt = lwstate.binding_table
+   bt:process_lookup_queue()
+   for n = 0, bt.lookup_queue_len - 1 do
+      local pkt, ipv6_dst, ipv6_src = bt:get_enqueued_lookup(n)
+      if ipv6_dst then
+         encapsulate_and_transmit(lwstate, pkt, ipv6_dst, ipv6_src)
+      else
+         -- Lookup failed.
+         if debug then print("lookup failed") end
+         if lwstate.policy_icmpv4_outgoing == lwconf.policies['DROP'] then
+            drop(pkt)
+         elseif get_ipv4_proto(get_ethernet_payload(pkt)) == proto_icmp then
+            -- FIXME: Why don't we send dst/host unreachable for ICMP?
+            drop(pkt)
+         else
+            local ipv4_header = get_ethernet_payload(pkt)
+            local to_ip = get_ipv4_src_address_ptr(ipv4_header)
+            -- ICMPv4 type 3 code 1 (dst/host unreachable)
+            icmp_after_discard(lwstate, pkt, to_ip)
+            drop(pkt)
+         end
+      end
+   end
+   bt:reset_lookup_queue()
+end
+
+local function enqueue_encapsulation(lwstate, pkt, ipv4, port)
+   enqueue_lookup(lwstate, pkt, ipv4, port, flush_encapsulation)
 end
 
 local function icmpv4_incoming(lwstate, pkt)
@@ -388,16 +445,8 @@ local function icmpv4_incoming(lwstate, pkt)
       source_port = get_ipv4_payload_src_port(embedded_ipv4_header)
       ipv4_dst = get_ipv4_src_address(embedded_ipv4_header)
    end
-   local ipv6_dst, ipv6_src = binding_lookup_ipv4(lwstate, ipv4_dst, source_port)
-   if not ipv6_dst then
-      -- No match found in the binding table; the packet MUST be
-      -- discarded.
-      return drop(pkt)
-   end
-   -- Otherwise, the packet MUST be forwarded
-   local next_hdr = proto_ipv4
-   return ipv6_encapsulate(lwstate, pkt, next_hdr, ipv6_src, ipv6_dst,
-                           lwstate.aftr_mac_b4_side, lwstate.next_hop6_mac)
+
+   return enqueue_encapsulation(lwstate, pkt, ipv4_dst, source_port)
 end
 
 -- The incoming packet is a complete one with ethernet headers.
@@ -425,43 +474,8 @@ local function from_inet(lwstate, pkt)
    -- shape.
    local dst_ip = get_ipv4_dst_address(ipv4_header)
    local dst_port = get_ipv4_payload_dst_port(ipv4_header)
-   local ipv6_dst, ipv6_src = binding_lookup_ipv4(lwstate, dst_ip, dst_port)
-   if not ipv6_dst then
-      -- Lookup failed.
-      counter.add(v4droppedPacket)
-      counter.add(v4droppedByte, pkt.length)
-      if debug then print("lookup failed") end
-      if lwstate.policy_icmpv4_outgoing == lwconf.policies['DROP'] then
-         return drop(pkt)
-      else
-         local to_ip = get_ipv4_src_address_ptr(ipv4_header)
-         -- ICMPv4 type 3 code 1 (dst/host unreachable)
-         return icmp_after_discard(lwstate, pkt, to_ip)
-      end
-   end
 
-   local ether_src = lwstate.aftr_mac_b4_side
-   local ether_dst = lwstate.next_hop6_mac
-
-   -- Do not encapsulate packets that now have a ttl of zero or wrapped around
-   local ttl = decrement_ttl(pkt)
-   if ttl == 0 or ttl == 255 then
-      if lwstate.policy_icmpv4_outgoing == lwconf.policies['DROP'] then
-         return
-      end
-      local dst_ip = get_ipv4_src_address_ptr(ipv4_header)
-      local icmp_config = {type = constants.icmpv4_time_exceeded,
-                           code = constants.icmpv4_ttl_exceeded_in_transit,
-                           }
-      local ttl0_icmp =  icmp.new_icmpv4_packet(lwstate.aftr_mac_inet_side, lwstate.inet_mac,
-                                                lwstate.aftr_ipv4_ip, dst_ip, pkt,
-                                                ethernet_header_size, icmp_config)
-      return transmit(lwstate.o4, ttl0_icmp)
-   end
-
-   local next_hdr = proto_ipv4
-   return ipv6_encapsulate(lwstate, pkt, next_hdr, ipv6_src, ipv6_dst,
-                           ether_src, ether_dst)
+   return enqueue_encapsulation(lwstate, pkt, dst_ip, dst_port)
 end
 
 local function tunnel_unreachable(lwstate, pkt, code, next_hop_mtu)
@@ -494,7 +508,7 @@ local function transmit_translated_icmpv4_reply(lwstate, pkt)
    local embedded_ipv4_src_ip = get_ipv4_src_address(embedded_ipv4_header)
    if lwstate.hairpinning and ipv4_in_binding_table(lwstate, embedded_ipv4_src_ip) then
       if debug then print("Hairpinning ICMPv4 mapped from ICMPv6") end
-      return icmpv4_incoming(lwstate, pkt) -- to B4
+      return transmit(lwstate.input.v4, pkt) -- to B4
    else
       return transmit(lwstate.o4, pkt)
    end
@@ -538,6 +552,48 @@ local function icmpv6_incoming(lwstate, pkt)
    return transmit_translated_icmpv4_reply(lwstate, icmpv4_reply)
 end
 
+local function decapsulate_and_transmit(lwstate, pkt)
+   -- Remove IPv6 header and rewrite the ethernet header.
+   packet.shiftleft(pkt, ipv6_fixed_header_size)
+   local ipv4_header = get_ethernet_payload(pkt)
+   local ipv4_dst_ip = get_ipv4_dst_address(ipv4_header)
+   write_eth_header(pkt.data, lwstate.aftr_mac_inet_side, lwstate.inet_mac,
+                    n_ethertype_ipv4)
+   if lwstate.hairpinning and ipv4_in_binding_table(lwstate, ipv4_dst_ip) then
+      -- The destination address is also behind the lwAFTR.  Add the
+      -- packet to the encapsulation queue, as if it came in from the
+      -- internet.
+      return transmit(lwstate.input.v4, pkt)
+   else
+      return transmit(lwstate.o4, pkt)
+   end
+end
+
+local function flush_decapsulation(lwstate)
+   local bt = lwstate.binding_table
+   bt:process_lookup_queue()
+   for n = 0, bt.lookup_queue_len - 1 do
+      local pkt, b4_addr, br_addr = bt:get_enqueued_lookup(n)
+
+      local ipv6_header = get_ethernet_payload(pkt)
+      if (b4_addr
+          and ipv6_equals(get_ipv6_src_address(ipv6_header), b4_addr)
+          and ipv6_equals(get_ipv6_dst_address(ipv6_header), br_addr)) then
+         decapsulate_and_transmit(lwstate, pkt)
+      elseif lwstate.policy_icmpv6_outgoing == lwconf.policies['ALLOW'] then
+         icmp_b4_lookup_failed(lwstate, pkt)
+         drop(pkt)
+      else
+         drop(pkt)
+      end
+   end
+   bt:reset_lookup_queue()
+end
+
+local function enqueue_decapsulation(lwstate, pkt, ipv4, port)
+   enqueue_lookup(lwstate, pkt, ipv4, port, flush_decapsulation)
+end
+
 -- FIXME: Verify that the packet length is big enough?
 local function from_b4(lwstate, pkt)
    local ipv6_header = get_ethernet_payload(pkt)
@@ -561,12 +617,8 @@ local function from_b4(lwstate, pkt)
       end
    end
 
-   local ipv6_src_ip = get_ipv6_src_address(ipv6_header)
-   local ipv6_dst_ip = get_ipv6_dst_address(ipv6_header)
    local tunneled_ipv4_header = get_ipv6_payload(ipv6_header)
    local ipv4_src_ip = get_ipv4_src_address(tunneled_ipv4_header)
-   local ipv4_dst_ip = get_ipv4_dst_address(tunneled_ipv4_header)
-   -- FIXME: Handle non-TCP, non-UDP payloads.
    local ipv4_src_port
    if get_ipv4_proto(tunneled_ipv4_header) == proto_icmp then
       local icmp_header = get_ipv4_payload(tunneled_ipv4_header)
@@ -578,39 +630,15 @@ local function from_b4(lwstate, pkt)
          ipv4_src_port = get_ipv4_payload_src_port(embedded_ipv4_header)
       end
    else
+      -- It's not ICMP.  Assume we can find ports in the IPv4 payload,
+      -- as in TCP and UDP.  We could check strictly for TCP/UDP, but
+      -- that would filter out similarly-shaped protocols like SCTP, so
+      -- we optimistically assume that the incoming traffic has the
+      -- right shape.
       ipv4_src_port = get_ipv4_payload_src_port(tunneled_ipv4_header)
    end
 
-   if in_binding_table(lwstate, ipv6_src_ip, ipv6_dst_ip, ipv4_src_ip, ipv4_src_port) then
-      -- Is it worth optimizing this to change src_eth, src_ipv6, ttl,
-      -- checksum, rather than decapsulating + re-encapsulating? It
-      -- would be faster, but more code.
-      if lwstate.hairpinning and ipv4_in_binding_table(lwstate, ipv4_dst_ip) then
-         -- Remove IPv6 header.
-         packet.shiftleft(pkt, ipv6_fixed_header_size)
-         write_eth_header(pkt.data, lwstate.next_hop6_mac, lwstate.aftr_mac_b4_side,
-                          n_ethertype_ipv4)
-         -- TODO:  refactor so this doesn't actually seem to be from the internet?
-         return from_inet(lwstate, pkt)
-      else
-         -- Remove IPv6 header.
-         packet.shiftleft(pkt, ipv6_fixed_header_size)
-         write_eth_header(pkt.data, lwstate.aftr_mac_inet_side, lwstate.inet_mac,
-                          n_ethertype_ipv4)
-         counter.add(v4sentPacket)
-         counter.add(v4sentByte, pkt.length)
-         return transmit(lwstate.o4, pkt)
-      end
-   elseif lwstate.policy_icmpv6_outgoing == lwconf.policies['ALLOW'] then
-      icmp_b4_lookup_failed(lwstate, pkt, ipv6_src_ip)
-      counter.add(v6droppedPacket)
-      counter.add(v6droppedByte, pkt.length)
-      return drop(pkt)
-   else
-      counter.add(v6droppedPacket)
-      counter.add(v6droppedByte, pkt.length)
-      return drop(pkt)
-   end
+   return enqueue_decapsulation(lwstate, pkt, ipv4_src_ip, ipv4_src_port)
 end
 
 function LwAftr:push ()
@@ -638,20 +666,11 @@ function LwAftr:push ()
       end
    end
 
-   for _=1,link.nreadable(i4) do
-      -- Encapsulate incoming IPv4 packets from the internet interface.
-      -- Drop anything that's not IPv4.
-      local pkt = receive(i4)
-      if is_ipv4(pkt) then
-         from_inet(self, pkt)
-      else
-         drop(pkt)
-      end
-   end
-
    for _=1,link.nreadable(i6) do
-      -- Decapsulate or hairpin incoming IPv6 packets from the B4
-      -- interface.  Drop anything that's not IPv6.
+      -- Decapsulate incoming IPv6 packets from the B4 interface and
+      -- push them out the V4 link, unless they need hairpinning, in
+      -- which case enqueue them on the incoming V4 link.  Drop anything
+      -- that's not IPv6.
       local pkt = receive(i6)
       if is_ipv6(pkt) then
          from_b4(self, pkt)
@@ -659,4 +678,17 @@ function LwAftr:push ()
          drop(pkt)
       end
    end
+   flush_decapsulation(self)
+
+   for _=1,link.nreadable(i4) do
+      -- Encapsulate incoming IPv4 packets, including hairpinned
+      -- packets.  Drop anything that's not IPv4.
+      local pkt = receive(i4)
+      if is_ipv4(pkt) then
+         from_inet(self, pkt)
+      else
+         drop(pkt)
+      end
+   end
+   flush_encapsulation(self)
 end

@@ -4,8 +4,10 @@ Usage:
   snabb-lwaftr run
   snabb-lwaftr transient
   snabb-lwaftr compile-binding-table
+  snabb-lwaftr generate-binding-table
   snabb-lwaftr control
   snabb-lwaftr loadtest
+  snabb-lwaftr generator
 
 Use --help for per-command usage.
 Example:

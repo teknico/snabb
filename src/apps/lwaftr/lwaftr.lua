@@ -415,23 +415,39 @@ local function icmpv4_incoming(lwstate, pkt)
       return drop(pkt)
    end
 
-   local source_port, ipv4_dst
+   local ipv4_dst = get_ipv4_dst_address(ipv4_header)
+   local port
 
    -- checksum was ok
-   if icmp_type == constants.icmpv4_echo_reply or icmp_type == constants.icmpv4_echo_request then
-      source_port = get_icmpv4_echo_identifier(icmp_header)
-      -- Use the outermost IP header for the destination; it's not
-      -- repeated in the payload.
-      ipv4_dst = get_ipv4_dst_address(ipv4_header)
+   if icmp_type == constants.icmpv4_echo_request then
+      -- For an incoming ping from the IPv4 internet, assume port == 0
+      -- for the purposes of looking up a softwire in the binding table.
+      -- This will allow ping to a B4 on an IPv4 without port sharing.
+      -- It also has the nice property of causing a drop if the IPv4 has
+      -- any reserved ports.
+      --
+      -- RFC 7596 section 8.1 seems to suggest that we should use the
+      -- echo identifier for this purpose, but that only makes sense for
+      -- echo requests originating from a B4, to identify the softwire
+      -- of the source.  It can't identify a destination softwire.  This
+      -- makes sense because you can't really "ping" a port-restricted
+      -- IPv4 address.
+      port = 0
+   elseif icmp_type == constants.icmpv4_echo_reply then
+      -- A reply to a ping that originally issued from a subscriber on
+      -- the B4 side; the B4 set the port in the echo identifier, as per
+      -- RFC 7596, section 8.1, so use that to look up the destination
+      -- softwire.
+      port = get_icmpv4_echo_identifier(icmp_header)
    else
-      -- As per REQ-3, use the ip address embedded in the ICMP payload
-      -- TODO: explicitly check for tcp/udp?
+      -- As per REQ-3, use the ip address embedded in the ICMP payload,
+      -- assuming that the payload is shaped like TCP or UDP with the
+      -- ports first.
       local embedded_ipv4_header = get_icmp_payload(icmp_header)
-      source_port = get_ipv4_payload_src_port(embedded_ipv4_header)
-      ipv4_dst = get_ipv4_src_address(embedded_ipv4_header)
+      port = get_ipv4_payload_src_port(embedded_ipv4_header)
    end
 
-   return enqueue_encapsulation(lwstate, pkt, ipv4_dst, source_port)
+   return enqueue_encapsulation(lwstate, pkt, ipv4_dst, port)
 end
 
 -- The incoming packet is a complete one with ethernet headers.

@@ -217,6 +217,11 @@ snabb_run_and_cmp ${TEST_BASE}/tunnel_icmp.conf \
    ${EMPTY} ${TEST_BASE}/hairpinned-icmpv4-echo-reply.pcap \
    ${EMPTY} ${TEST_BASE}/hairpinned-icmpv4-echo-reply-from-aftr.pcap
 
+echo "Testing: from-to-b4 tunneled ICMPv4 ping, with hairpinning, unbound"
+snabb_run_and_cmp ${TEST_BASE}/tunnel_icmp.conf \
+   ${EMPTY} ${TEST_BASE}/hairpinned-icmpv4-echo-request-unbound.pcap \
+   ${EMPTY} ${EMPTY}
+
 echo "Testing: from-to-b4 IPv6 packet, with hairpinning, with vlan tag"
 snabb_run_and_cmp ${TEST_BASE}/vlan.conf \
    ${EMPTY} ${TEST_BASE}/tcp-fromb4-tob4-ipv6-vlan.pcap \

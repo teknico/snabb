@@ -255,16 +255,48 @@ local function in_binding_table(lwstate, ipv6_src_ip, ipv6_dst_ip, ipv4_src_ip, 
    return b4 and ipv6_equals(b4, ipv6_src_ip) and ipv6_equals(br, ipv6_dst_ip)
 end
 
+local function transmit_ipv4(lwstate, pkt)
+   local ipv4_header = get_ethernet_payload(pkt)
+   local dst_ip = get_ipv4_dst_address(ipv4_header)
+   if lwstate.hairpinning and ipv4_in_binding_table(lwstate, dst_ip) then
+      -- The destination address is managed by the lwAFTR, so we need to
+      -- hairpin this packet.  Enqueue on the IPv4 interface, as if it
+      -- came from the internet.
+      return transmit(lwstate.input.v4, pkt)
+   else
+      return transmit(lwstate.o4, pkt)
+   end
+end
+
+local function transmit_ipv4_reply(lwstate, pkt, orig_pkt)
+   drop(orig_pkt)
+   return transmit_ipv4(lwstate, pkt)
+end
+
 -- ICMPv4 type 3 code 1, as per RFC 7596.
 -- The target IPv4 address + port is not in the table.
-local function icmp_after_discard(lwstate, pkt, to_ip)
-   local icmp_config = {type = constants.icmpv4_dst_unreachable,
-                        code = constants.icmpv4_host_unreachable,
-                        }
-   local icmp_dis = icmp.new_icmpv4_packet(lwstate.aftr_mac_inet_side, lwstate.inet_mac,
-                                           lwstate.aftr_ipv4_ip, to_ip, pkt,
-                                           ethernet_header_size, icmp_config)
-   return transmit(lwstate.o4, icmp_dis)
+local function drop_ipv4_packet_to_unreachable_host(lwstate, pkt, to_ip)
+   if lwstate.policy_icmpv4_outgoing == lwconf.policies['DROP'] then
+      -- ICMP error messages off by policy; silently drop.
+      return drop(pkt)
+   end
+
+   if get_ipv4_proto(get_ethernet_payload(pkt)) == proto_icmp then
+      -- FIXME: We should send dst/host unreachable for ICMP
+      -- messages, unless the ICMP message is an error message.
+      return drop(pkt)
+   end
+
+   local ipv4_header = get_ethernet_payload(pkt)
+   local to_ip = get_ipv4_src_address_ptr(ipv4_header)
+   local icmp_config = {
+      type = constants.icmpv4_dst_unreachable,
+      code = constants.icmpv4_host_unreachable,
+   }
+   local icmp_dis = icmp.new_icmpv4_packet(
+      lwstate.aftr_mac_inet_side, lwstate.inet_mac, lwstate.aftr_ipv4_ip,
+      to_ip, pkt, ethernet_header_size, icmp_config)
+   return transmit_ipv4_reply(lwstate, icmp_dis, pkt)
 end
 
 -- ICMPv6 type 1 code 5, as per RFC 7596.
@@ -276,6 +308,7 @@ local function icmp_b4_lookup_failed(lwstate, pkt, to_ip)
    local b4fail_icmp = icmp.new_icmpv6_packet(lwstate.aftr_mac_b4_side, lwstate.next_hop6_mac,
                                               lwstate.aftr_ipv6_ip, to_ip, pkt,
                                               ethernet_header_size, icmp_config)
+   drop(pkt)
    transmit_icmpv6_with_rate_limit(lwstate.o6, b4fail_icmp)
 end
 
@@ -320,11 +353,10 @@ local function encapsulate_and_transmit(lwstate, pkt, ipv6_dst, ipv6_src)
       local icmp_config = {type = constants.icmpv4_time_exceeded,
                            code = constants.icmpv4_ttl_exceeded_in_transit,
                            }
-      local ttl0_icmp =  icmp.new_icmpv4_packet(lwstate.aftr_mac_inet_side, lwstate.inet_mac,
-                                                lwstate.aftr_ipv4_ip, dst_ip, pkt,
-                                                ethernet_header_size, icmp_config)
-      drop(pkt)
-      return transmit(lwstate.o4, ttl0_icmp)
+      local reply = icmp.new_icmpv4_packet(
+         lwstate.aftr_mac_inet_side, lwstate.inet_mac, lwstate.aftr_ipv4_ip,
+         dst_ip, pkt, ethernet_header_size, icmp_config)
+      return transmit_ipv4_reply(lwstate, reply, pkt)
    end
 
    if debug then print("ipv6", ipv6_src, ipv6_dst) end
@@ -334,9 +366,8 @@ local function encapsulate_and_transmit(lwstate, pkt, ipv6_dst, ipv6_src)
    local ether_dst = lwstate.next_hop6_mac
 
    if encapsulating_packet_with_df_flag_would_exceed_mtu(lwstate, pkt) then
-      local icmp_pkt = cannot_fragment_df_packet_error(lwstate, pkt)
-      drop(pkt)
-      return transmit(lwstate.o4, icmp_pkt)
+      local reply = cannot_fragment_df_packet_error(lwstate, pkt)
+      return transmit_ipv4_reply(lwstate, reply, pkt)
    end
 
    local payload_length = get_ethernet_payload_length(pkt)
@@ -361,19 +392,7 @@ local function enqueue_encapsulation(lwstate, pkt, ipv4, port)
    if not ipv6_dst then
       -- Lookup failed.
       if debug then print("lookup failed") end
-      if lwstate.policy_icmpv4_outgoing == lwconf.policies['DROP'] then
-         return drop(pkt)
-      elseif get_ipv4_proto(get_ethernet_payload(pkt)) == proto_icmp then
-         -- FIXME: Why don't we send dst/host unreachable for ICMP?
-         return drop(pkt)
-      else
-         local ipv4_header = get_ethernet_payload(pkt)
-         local to_ip = get_ipv4_src_address_ptr(ipv4_header)
-         -- ICMPv4 type 3 code 1 (dst/host unreachable)
-         return icmp_after_discard(lwstate, pkt, to_ip)
-      end
-
-      return drop(pkt)
+      return drop_ipv4_packet_to_unreachable_host(lwstate, pkt)
    end
    return encapsulate_and_transmit(lwstate, pkt, ipv6_dst, ipv6_src)
 end
@@ -458,40 +477,22 @@ local function tunnel_unreachable(lwstate, pkt, code, next_hop_mtu)
    return icmp_reply
 end
 
-local function transmit_translated_icmpv4_reply(lwstate, pkt)
-   -- If the ICMPv4 packet is in response to a packet from the external
-   -- network, send it there. If hairpinning is/was enabled, it could be
-   -- from a b4; if it was from a b4, encapsulate the generated IPv4
-   -- message and send it.  This is the most plausible reading of RFC
-   -- 2473, although not unambigous.
-   local ipv4_header = get_ethernet_payload(pkt)
-   local icmp_header = get_ipv4_payload(ipv4_header)
-   local embedded_ipv4_header = get_icmp_payload(icmp_header)
-   local embedded_ipv4_src_ip = get_ipv4_src_address(embedded_ipv4_header)
-   if lwstate.hairpinning and ipv4_in_binding_table(lwstate, embedded_ipv4_src_ip) then
-      if debug then print("Hairpinning ICMPv4 mapped from ICMPv6") end
-      return transmit(lwstate.input.v4, pkt) -- to B4
-   else
-      return transmit(lwstate.o4, pkt)
-   end
-end
-
 -- FIXME: Verify that the softwire is in the the binding table.
 local function icmpv6_incoming(lwstate, pkt)
    local ipv6_header = get_ethernet_payload(pkt)
    local icmp_header = get_ipv6_payload(ipv6_header)
    local icmp_type = get_icmp_type(icmp_header)
    local icmp_code = get_icmp_code(icmp_header)
-   local icmpv4_reply
    if icmp_type == constants.icmpv6_packet_too_big then
       if icmp_code ~= constants.icmpv6_code_packet_too_big then
          -- Invalid code.
          return drop(pkt)
       end
       local mtu = get_icmp_mtu(icmp_header) - constants.ipv6_fixed_header_size
-      icmpv4_reply = tunnel_unreachable(lwstate, pkt,
-                                        constants.icmpv4_datagram_too_big_df,
-                                        mtu)
+      local reply = tunnel_unreachable(lwstate, pkt,
+                                       constants.icmpv4_datagram_too_big_df,
+                                       mtu)
+      return transmit_ipv4_reply(lwstate, reply, pkt)
    -- Take advantage of having already checked for 'packet too big' (2), and
    -- unreachable node/hop limit exceeded/paramater problem being 1, 3, 4 respectively
    elseif icmp_type <= constants.icmpv6_parameter_problem then
@@ -502,16 +503,14 @@ local function icmpv6_incoming(lwstate, pkt)
          end
       end
       -- Accept all unreachable or parameter problem codes
-      icmpv4_reply = tunnel_unreachable(lwstate, pkt,
-                                        constants.icmpv4_host_unreachable)
+      local reply = tunnel_unreachable(lwstate, pkt,
+                                       constants.icmpv4_host_unreachable)
+      return transmit_ipv4_reply(lwstate, reply, pkt)
    else
       -- No other types of ICMPv6, including echo request/reply, are
       -- handled.
       return drop(pkt)
    end
-
-   drop(pkt)
-   return transmit_translated_icmpv4_reply(lwstate, icmpv4_reply)
 end
 
 -- FIXME: Verify that the packet length is big enough?
@@ -553,23 +552,12 @@ local function from_b4(lwstate, pkt)
    end
 
    if in_binding_table(lwstate, ipv6_src_ip, ipv6_dst_ip, ipv4_src_ip, ipv4_src_port) then
-      -- Is it worth optimizing this to change src_eth, src_ipv6, ttl,
-      -- checksum, rather than decapsulating + re-encapsulating? It
-      -- would be faster, but more code.
-      if lwstate.hairpinning and ipv4_in_binding_table(lwstate, ipv4_dst_ip) then
-         -- Remove IPv6 header.
-         packet.shiftleft(pkt, ipv6_fixed_header_size)
-         write_eth_header(pkt.data, lwstate.next_hop6_mac, lwstate.aftr_mac_b4_side,
-                          n_ethertype_ipv4)
-         -- TODO:  refactor so this doesn't actually seem to be from the internet?
-         return transmit(lwstate.input.v4, pkt)
-      else
-         -- Remove IPv6 header.
-         packet.shiftleft(pkt, ipv6_fixed_header_size)
-         write_eth_header(pkt.data, lwstate.aftr_mac_inet_side, lwstate.inet_mac,
-                          n_ethertype_ipv4)
-         return transmit(lwstate.o4, pkt)
-      end
+      -- Incoming packet is from a valid softwire; decapsulate and
+      -- forward.
+      packet.shiftleft(pkt, ipv6_fixed_header_size)
+      write_eth_header(pkt.data, lwstate.aftr_mac_inet_side, lwstate.inet_mac,
+                       n_ethertype_ipv4)
+      return transmit_ipv4(lwstate, pkt)
    elseif lwstate.policy_icmpv6_outgoing == lwconf.policies['ALLOW'] then
       icmp_b4_lookup_failed(lwstate, pkt, ipv6_src_ip)
       return drop(pkt)

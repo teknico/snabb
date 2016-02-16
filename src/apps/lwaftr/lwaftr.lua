@@ -213,6 +213,7 @@ local function decrement_ttl(pkt)
    local ipv4_header = get_ethernet_payload(pkt)
    local checksum = bnot(ntohs(rd16(ipv4_header + o_ipv4_checksum)))
    local old_ttl = ipv4_header[o_ipv4_ttl]
+   if old_ttl == 0 then return 0 end
    local new_ttl = band(old_ttl - 1, 0xff)
    ipv4_header[o_ipv4_ttl] = new_ttl
    -- Now fix up the checksum.  o_ipv4_ttl is the first byte in the
@@ -310,9 +311,9 @@ end
 local function encapsulate_and_transmit(lwstate, pkt, ipv6_dst, ipv6_src)
    -- Do not encapsulate packets that now have a ttl of zero or wrapped around
    local ttl = decrement_ttl(pkt)
-   if ttl == 0 or ttl == 255 then
+   if ttl == 0 then
       if lwstate.policy_icmpv4_outgoing == lwconf.policies['DROP'] then
-         return
+         return drop(pkt)
       end
       local ipv4_header = get_ethernet_payload(pkt)
       local dst_ip = get_ipv4_src_address_ptr(ipv4_header)
@@ -322,6 +323,7 @@ local function encapsulate_and_transmit(lwstate, pkt, ipv6_dst, ipv6_src)
       local ttl0_icmp =  icmp.new_icmpv4_packet(lwstate.aftr_mac_inet_side, lwstate.inet_mac,
                                                 lwstate.aftr_ipv4_ip, dst_ip, pkt,
                                                 ethernet_header_size, icmp_config)
+      drop(pkt)
       return transmit(lwstate.o4, ttl0_icmp)
    end
 

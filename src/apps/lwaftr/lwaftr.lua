@@ -279,6 +279,8 @@ local function icmp_after_discard(lwstate, pkt, to_ip)
    local icmp_dis = icmp.new_icmpv4_packet(lwstate.aftr_mac_inet_side, lwstate.inet_mac,
                                            lwstate.aftr_ipv4_ip, to_ip, pkt,
                                            ethernet_header_size, icmp_config)
+   counter.add(v4sentPacket)
+   counter.add(v4sentByte, pkt.length)
    return transmit(lwstate.o4, icmp_dis)
 end
 
@@ -524,6 +526,8 @@ local function icmpv6_incoming(lwstate, pkt)
    if icmp_type == constants.icmpv6_packet_too_big then
       if icmp_code ~= constants.icmpv6_code_packet_too_big then
          -- Invalid code.
+         counter.add(v6droppedPacket)
+         counter.add(v6droppedByte, pkt.length)
          return drop(pkt)
       end
       local mtu = get_icmp_mtu(icmp_header) - constants.ipv6_fixed_header_size
@@ -536,6 +540,8 @@ local function icmpv6_incoming(lwstate, pkt)
       -- If the time limit was exceeded, require it was a hop limit code
       if icmp_type == constants.icmpv6_time_limit_exceeded then
          if icmp_code ~= constants.icmpv6_hop_limit_exceeded then
+            counter.add(v6droppedPacket)
+            counter.add(v6droppedByte, pkt.length)
             return drop(pkt)
          end
       end
@@ -545,9 +551,13 @@ local function icmpv6_incoming(lwstate, pkt)
    else
       -- No other types of ICMPv6, including echo request/reply, are
       -- handled.
+      counter.add(v6droppedPacket)
+      counter.add(v6droppedByte, pkt.length)
       return drop(pkt)
    end
-
+      
+   counter.add(v6droppedPacket)
+   counter.add(v6droppedByte, pkt.length)
    drop(pkt)
    return transmit_translated_icmpv4_reply(lwstate, icmpv4_reply)
 end
@@ -582,8 +592,12 @@ local function flush_decapsulation(lwstate)
          decapsulate_and_transmit(lwstate, pkt)
       elseif lwstate.policy_icmpv6_outgoing == lwconf.policies['ALLOW'] then
          icmp_b4_lookup_failed(lwstate, pkt)
+         counter.add(v6droppedPacket)
+         counter.add(v6droppedByte, pkt.length)
          drop(pkt)
       else
+         counter.add(v6droppedPacket)
+         counter.add(v6droppedByte, pkt.length)
          drop(pkt)
       end
    end
@@ -613,6 +627,8 @@ local function from_b4(lwstate, pkt)
          end
       else
          -- Drop packet with unknown protocol.
+         counter.add(v6droppedPacket)
+         counter.add(v6droppedByte, pkt.length)
          return drop(pkt)
       end
    end
@@ -675,6 +691,8 @@ function LwAftr:push ()
       if is_ipv6(pkt) then
          from_b4(self, pkt)
       else
+         counter.add(v6droppedPacket)
+         counter.add(v6droppedByte, pkt.length)
          drop(pkt)
       end
    end
@@ -687,6 +705,8 @@ function LwAftr:push ()
       if is_ipv4(pkt) then
          from_inet(self, pkt)
       else
+         counter.add(v4droppedPacket)
+         counter.add(v4droppedByte, pkt.length)
          drop(pkt)
       end
    end

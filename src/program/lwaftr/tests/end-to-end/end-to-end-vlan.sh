@@ -190,6 +190,30 @@ snabb_run_and_cmp ${TEST_CONF}/no_icmp_vlan.conf \
    ${EMPTY} ${TEST_DATA}/tcp-fromb4-tob4-ipv6.pcap \
    ${EMPTY} ${TEST_DATA}/recap-ipv6.pcap
 
+echo "Testing: from-to-b4 tunneled ICMPv4 ping, with hairpinning"
+# Ping from 127:11:12:13:14:15:16:128 / 178.79.150.233+7850 to
+# 178.79.150.1, which has b4 address 127:22:33:44:55:66:77:127 and is
+# not port-restricted.
+snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
+   ${EMPTY} ${TEST_DATA}/hairpinned-icmpv4-echo-request.pcap \
+   ${EMPTY} ${TEST_DATA}/hairpinned-icmpv4-echo-request-from-aftr.pcap
+
+echo "Testing: from-to-b4 tunneled ICMPv4 ping reply, with hairpinning"
+# As above, but a reply instead.
+snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
+   ${EMPTY} ${TEST_DATA}/hairpinned-icmpv4-echo-reply.pcap \
+   ${EMPTY} ${TEST_DATA}/hairpinned-icmpv4-echo-reply-from-aftr.pcap
+
+echo "Testing: from-to-b4 tunneled ICMPv4 ping, with hairpinning, unbound"
+snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
+   ${EMPTY} ${TEST_DATA}/hairpinned-icmpv4-echo-request-unbound.pcap \
+   ${EMPTY} ${EMPTY}
+
+echo "Testing: from-to-b4 TCP packet, with hairpinning, TTL 1"
+snabb_run_and_cmp ${TEST_CONF}/tunnel_icmp_vlan.conf \
+   ${EMPTY} ${TEST_DATA}/tcp-fromb4-tob4-ipv6-ttl-1.pcap \
+   ${EMPTY} ${TEST_DATA}/tcp-fromb4-tob4-ipv6-ttl-1-reply.pcap
+
 echo "Testing: from-b4 IPv6 packet, with hairpinning, to B4 with custom lwAFTR address"
 snabb_run_and_cmp ${TEST_CONF}/no_icmp_vlan.conf \
    ${EMPTY} ${TEST_DATA}/tcp-fromb4-tob4-customBRIP-ipv6.pcap \
@@ -355,4 +379,4 @@ snabb_run_and_cmp ${TEST_CONF}/no_icmp_with_filters_and_vlan_accept.conf \
 	${EMPTY} ${TEST_DATA}/ping-v6-and-data.pcap \
 	${TEST_DATA}/decap-ipv4.pcap ${TEST_DATA}/ping-v6-reply.pcap
 
-echo "All end-to-end lwAFTR tests passed."
+echo "All end-to-end lwAFTR vlan tests passed."

@@ -25,7 +25,8 @@ A bug fix and performance improvement release.
  * Allow B4s that have access to port 0 on their IPv4 address to be
    pinged from the internet or from a hairpinned B4, and to reply.  This
    enables a B4 with a whole IPv4 address to be pinged.  Having any
-   reserved ports on an IPv4 address will prevent pings.
+   reserved ports on an IPv4 address will prevent any B4 on that IPv4
+   from being pinged, as reserved ports make port 0 unavailable.
 
  * Switch to stream in results from binding table lookups in batches of
    32 using optimized assembly code.  This increases performance

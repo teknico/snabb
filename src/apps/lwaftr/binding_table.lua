@@ -186,7 +186,7 @@ function BindingTable:enqueue_lookup(pkt, ipv4, port)
    return n == 32
 end
 
-function BindingTable:dequeue_lookups()
+function BindingTable:process_lookup_queue()
    if self.lookup_queue_len > 0 then
       local streamer = self.streamer
       for n = 0, self.lookup_queue_len-1 do
@@ -196,23 +196,25 @@ function BindingTable:dequeue_lookups()
       end
       streamer:stream()
    end
-   return self.dequeue_lookup, self, 0
+   return self.lookup_queue_len
 end
 
-function BindingTable:dequeue_lookup(n)
+function BindingTable:get_enqueued_lookup(n)
    if n < self.lookup_queue_len then
       local streamer = self.streamer
-      local pkt = self.packet_queue[n]
-      local b4_ipv6, br_ipv6
+      local pkt, b4_ipv6, br_ipv6
+      pkt = self.packet_queue[n]
+      self.packet_queue[n] = nil
       if not streamer:is_empty(n) then
          b4_ipv6 = streamer.entries[n].value.b4_ipv6
          br_ipv6 = self:get_br_address(streamer.entries[n].value.br)
       end
-      return n + 1, pkt, b4_ipv6, br_ipv6
-   else
-      self.lookup_queue_len = 0
-      return nil
+      return pkt, b4_ipv6, br_ipv6
    end
+end
+
+function BindingTable:reset_lookup_queue()
+   self.lookup_queue_len = 0
 end
 
 function BindingTable:is_managed_ipv4_address(ipv4)

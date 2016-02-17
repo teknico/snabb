@@ -1,5 +1,37 @@
 # Change Log
 
+## [2.3] - 2016-02-17
+
+A bug fix and performance improvement release.
+
+ * Fix case in which TTL of ICMPv4 packets was not always being
+   decremented.
+
+ * Fix memory leaks when dropping packets due to 0 TTL, failed binding
+   table lookup, or other errors that might cause ICMP error replies.
+
+ * Fix hairpinning of ICMP error messages for non-existent IPv4 hosts.
+   Before, these errors always were going out the public IPv4 interface
+   instead of being hairpinned if needed.
+
+ * Fix hairpinning of ICMP error messages for incoming IPv4 packets
+   whose TTL is 0 or 1. Before, these errors always were going out the
+   public IPv4 interface instead of being hairpinned if needed.
+
+ * Fix hairpinning of ICMP error messages for packets with the DF bit
+   that would cause fragmentation. Likewise these were always going out
+   the public interface.
+
+ * Allow B4s that have access to port 0 on their IPv4 address to be
+   pinged from the internet or from a hairpinned B4, and to reply.  This
+   enables a B4 with a whole IPv4 address to be pinged.  Having any
+   reserved ports on an IPv4 address will prevent any B4 on that IPv4
+   from being pinged, as reserved ports make port 0 unavailable.
+
+ * Switch to stream in results from binding table lookups in batches of
+   32 using optimized assembly code.  This increases performance
+   substantially.
+
 ## [2.2] - 2016-02-11
 
 Adds `--ring-buffer-size` argument to `snabb-lwaftr run` which can

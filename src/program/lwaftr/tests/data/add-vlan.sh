@@ -45,6 +45,11 @@ V4=(
 )
 
 V6=(
+    hairpinned-icmpv4-echo-reply.pcap
+    hairpinned-icmpv4-echo-reply-from-aftr.pcap
+    hairpinned-icmpv4-echo-request.pcap
+    hairpinned-icmpv4-echo-request-from-aftr.pcap
+    hairpinned-icmpv4-echo-request-unbound.pcap
     icmpv6-nogress-ip-bound-port-unbound.pcap
     icmpv6-nogress.pcap
     incoming-icmpv6-13dstaddressunreach-inet-OPE.pcap
@@ -83,6 +88,8 @@ V6=(
     tcp-fromb4-tob4-customBRIP-ipv6.pcap
     tcp-fromb4-tob4-ipv6.pcap
     tcp-ipv6-2frags-bound.pcap
+    tcp-fromb4-tob4-ipv6-ttl-1.pcap
+    tcp-fromb4-tob4-ipv6-ttl-1-reply.pcap
     tcp-ipv6-fromb4-toinet-1046.pcap
     tcp-ipv6-fromb4-toinet-1500.pcap
     udp-afteraftr-ipv6-2frags.pcap

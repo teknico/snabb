@@ -108,8 +108,8 @@ function ipv4_packet(params)
       ether_hdr = cast(ethernet_header_ptr_type, p.data)
       ethernet_header_size = lwtypes.ethernet_header_size
    end
-   ether_hdr.ether_dhost = params.src_mac
-   ether_hdr.ether_shost = params.dst_mac
+   ether_hdr.ether_dhost = params.dst_mac
+   ether_hdr.ether_shost = params.src_mac
    ether_hdr.ether_type = PROTO_IPV4
 
    local ipv4_hdr = cast(ipv4_header_ptr_type, p.data + ethernet_header_size)

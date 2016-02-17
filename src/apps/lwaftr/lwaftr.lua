@@ -569,6 +569,8 @@ local function decapsulate_and_transmit(lwstate, pkt)
    local ipv4_dst_ip = get_ipv4_dst_address(ipv4_header)
    write_eth_header(pkt.data, lwstate.aftr_mac_inet_side, lwstate.inet_mac,
                     n_ethertype_ipv4)
+   counter.add(v4sentPacket)
+   counter.add(v4sentByte, pkt.length)
    if lwstate.hairpinning and ipv4_in_binding_table(lwstate, ipv4_dst_ip) then
       -- The destination address is also behind the lwAFTR.  Add the
       -- packet to the encapsulation queue, as if it came in from the

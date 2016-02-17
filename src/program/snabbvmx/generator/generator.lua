@@ -25,7 +25,7 @@ end
 
 function parse_args(args)
    if #args == 0 then show_usage(1) end
-   local pciaddr, mac, ip, count, port, size, protocol, mtu
+   local pciaddr, mac, ipv4, ipv6, lwaftr_ipv6, count, port, size, protocol, mtu
    local opts = { verbosity = 0, debug = 0 }
    local handlers = {}
    function handlers.v () opts.verbosity = opts.verbosity + 1 end
@@ -49,7 +49,13 @@ function parse_args(args)
       end
    end
    function handlers.i(arg)
-     ip = arg
+     ipv4 = arg
+   end
+   function handlers.j(arg)
+     ipv6 = arg
+   end
+   function handlers.l(arg)
+     lwaftr_ipv6 = arg
    end
    function handlers.n(arg)
      count = tonumber(arg)
@@ -64,21 +70,22 @@ function parse_args(args)
      size = tonumber(arg)
    end
    function handlers.h() show_usage(0) end
-   lib.dogetopt(args, handlers, "p:t:m:i:n:o:s:P:X:dvD:h",
-      { ["pci"] = "p", ["tap"] = 't', ["mac"] = "m", ["ip"] = "i", ["count"] = "n",
+   lib.dogetopt(args, handlers, "p:t:m:i:j:n:l:o:s:P:X:dvD:h",
+      { ["pci"] = "p", ["tap"] = 't', ["mac"] = "m", ["ipv4"] = "i", ["ipv6"] = "j", ["count"] = "n",
+        ["lwaftr"] = "l", 
         ["port"] = "o", ["size"] = "s", ["protocol"] = "P", ["mtu"] = "X", debug = "d",
         verbose = "v", duration = "D", help = "h" })
-   return opts, pciaddr, mac, ip, count, port, size, protocol, mtu
+   return opts, pciaddr, mac, ipv4, ipv6, lwaftr_ipv6, count, port, size, protocol, mtu
 end
 
 function run(args)
-  local opts, pciaddr, mac, ip, count, port, size, protocol, mtu = parse_args(args)
+  local opts, pciaddr, mac, ipv4, ipv6, lwaftr_ipv6, count, port, size, protocol, mtu = parse_args(args)
   local conf = {}
 
   local c = config.new()
 
   config.app(c, "generator", generator, 
-  {mac = mac, ip = ip, count = count, port = port, size = size, protocol = protocol, debug = opts.debug})
+  {mac = mac, ipv4 = ipv4, ipv6 = ipv6, lwaftr_ipv6 = lwaftr_ipv6, count = count, port = port, size = size, protocol = protocol, debug = opts.debug})
 
   config.app(c, "rx", basic_apps.Statistics)
 

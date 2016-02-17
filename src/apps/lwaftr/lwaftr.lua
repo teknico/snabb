@@ -401,19 +401,15 @@ local function enqueue_lookup(lwstate, pkt, ipv4, port, flush)
 end
 
 local function flush_encapsulation(lwstate)
-   local bt = lwstate.binding_table
-   bt:process_lookup_queue()
-   for n = 0, bt.lookup_queue_len - 1 do
-      local pkt, ipv6_dst, ipv6_src = bt:get_enqueued_lookup(n)
-      if ipv6_dst then
-         encapsulate_and_transmit(lwstate, pkt, ipv6_dst, ipv6_src)
+   for _, pkt, b4_addr, br_addr in lwstate.binding_table:dequeue_lookups() do
+      if b4_addr then
+         encapsulate_and_transmit(lwstate, pkt, b4_addr, br_addr)
       else
          -- Lookup failed.
          if debug then print("lookup failed") end
          drop_ipv4_packet_to_unreachable_host(lwstate, pkt)
       end
    end
-   bt:reset_lookup_queue()
 end
 
 local function enqueue_encapsulation(lwstate, pkt, ipv4, port)
@@ -553,11 +549,7 @@ local function icmpv6_incoming(lwstate, pkt)
 end
 
 local function flush_decapsulation(lwstate)
-   local bt = lwstate.binding_table
-   bt:process_lookup_queue()
-   for n = 0, bt.lookup_queue_len - 1 do
-      local pkt, b4_addr, br_addr = bt:get_enqueued_lookup(n)
-
+   for _, pkt, b4_addr, br_addr in lwstate.binding_table:dequeue_lookups() do
       local ipv6_header = get_ethernet_payload(pkt)
       if (b4_addr
           and ipv6_equals(get_ipv6_src_address(ipv6_header), b4_addr)
@@ -571,7 +563,6 @@ local function flush_decapsulation(lwstate)
          drop_ipv6_packet_from_bad_softwire(lwstate, pkt)
       end
    end
-   bt:reset_lookup_queue()
 end
 
 local function enqueue_decapsulation(lwstate, pkt, ipv4, port)

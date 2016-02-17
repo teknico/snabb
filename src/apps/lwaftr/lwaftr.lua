@@ -551,23 +551,39 @@ local function from_b4(lwstate, pkt)
    local ipv6_dst_ip = get_ipv6_dst_address(ipv6_header)
    local tunneled_ipv4_header = get_ipv6_payload(ipv6_header)
    local ipv4_src_ip = get_ipv4_src_address(tunneled_ipv4_header)
-   local ipv4_dst_ip = get_ipv4_dst_address(tunneled_ipv4_header)
    -- FIXME: Handle non-TCP, non-UDP payloads.
-   local ipv4_src_port
+   local port
    if get_ipv4_proto(tunneled_ipv4_header) == proto_icmp then
       local icmp_header = get_ipv4_payload(tunneled_ipv4_header)
-      if (get_icmp_type(icmp_header) == constants.icmpv4_echo_reply or
-          get_icmp_type(icmp_header) == constants.icmpv4_echo_request) then
-         ipv4_src_port = get_icmpv4_echo_identifier(icmp_header)
+      local icmp_type = get_icmp_type(icmp_header)
+      if icmp_type == constants.icmpv4_echo_request then
+         -- A ping going out from the B4 to the internet; the B4 will
+         -- encode a port in its range into the echo identifier, as per
+         -- RFC 7596 section 8.
+         port = get_icmpv4_echo_identifier(icmp_header)
+      elseif icmp_type == constants.icmpv4_echo_reply then
+         -- A reply to a ping, coming from the B4.  Only B4s whose
+         -- softwire is associated with port 0 are pingable.  See
+         -- icmpv4_incoming for more discussion.
+         port = 0
       else
+         -- Otherwise it's an error in response to a non-ICMP packet,
+         -- routed to the B4 via the ports in IPv4 payload.  Extract
+         -- these ports from the embedded packet fragment in the ICMP
+         -- payload.
          local embedded_ipv4_header = get_icmp_payload(icmp_header)
-         ipv4_src_port = get_ipv4_payload_src_port(embedded_ipv4_header)
+         port = get_ipv4_payload_src_port(embedded_ipv4_header)
       end
    else
-      ipv4_src_port = get_ipv4_payload_src_port(tunneled_ipv4_header)
+      -- It's not ICMP.  Assume we can find ports in the IPv4 payload,
+      -- as in TCP and UDP.  We could check strictly for TCP/UDP, but
+      -- that would filter out similarly-shaped protocols like SCTP, so
+      -- we optimistically assume that the incoming traffic has the
+      -- right shape.
+      port = get_ipv4_payload_src_port(tunneled_ipv4_header)
    end
 
-   if in_binding_table(lwstate, ipv6_src_ip, ipv6_dst_ip, ipv4_src_ip, ipv4_src_port) then
+   if in_binding_table(lwstate, ipv6_src_ip, ipv6_dst_ip, ipv4_src_ip, port) then
       -- Incoming packet is from a valid softwire; decapsulate and
       -- forward.
       packet.shiftleft(pkt, ipv6_fixed_header_size)

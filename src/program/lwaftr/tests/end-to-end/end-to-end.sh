@@ -222,6 +222,11 @@ snabb_run_and_cmp ${TEST_BASE}/tunnel_icmp.conf \
    ${EMPTY} ${TEST_BASE}/hairpinned-icmpv4-echo-request-unbound.pcap \
    ${EMPTY} ${EMPTY}
 
+echo "Testing: from-to-b4 tunneled ICMPv4 ping reply, with hairpinning, port 0 not bound"
+snabb_run_and_cmp ${TEST_BASE}/tunnel_icmp.conf \
+   ${EMPTY} ${TEST_BASE}/hairpinned-icmpv4-echo-reply-unbound.pcap \
+   ${EMPTY} ${TEST_BASE}/hairpinned-icmpv4-echo-reply-unbound-from-aftr.pcap
+
 echo "Testing: from-to-b4 TCP packet, with hairpinning, TTL 1"
 snabb_run_and_cmp ${TEST_BASE}/tunnel_icmp.conf \
    ${EMPTY} ${TEST_BASE}/tcp-fromb4-tob4-ipv6-ttl-1.pcap \

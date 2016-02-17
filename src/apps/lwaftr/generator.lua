@@ -14,12 +14,13 @@ module(..., package.seeall)
 -- address, IPv6 lwAFTR address and PSID length value. It works similarly to
 -- `from_inet`.
 
-local lib = require("core.lib")
-local lwtypes = require("apps.lwaftr.lwtypes")
+local ipsum = require("lib.checksum").ipsum
 local ipv4 = require("lib.protocol.ipv4")
 local ipv6 = require("lib.protocol.ipv6")
-local packet = require("core.packet")
+local lib = require("core.lib")
 local link = require("core.link")
+local lwtypes = require("apps.lwaftr.lwtypes")
+local packet = require("core.packet")
 
 local ffi = require("ffi")
 local C = ffi.C
@@ -159,6 +160,10 @@ function from_inet:new_packet()
    -- Change destination IPv4
    local ipv4_hdr = cast(ipv4_header_ptr_type, p.data + ethernet_header_size)
    ipv4_hdr.dst_ip = self.dst_ip
+   ipv4_hdr.checksum =  0
+   ipv4_hdr.checksum = C.htons(ipsum(p.data + ethernet_header_size,
+      ipv4_header_size, 0))
+
    -- Change destination port
    local udp_hdr = cast(udp_header_ptr_type, p.data + (ethernet_header_size + ipv4_header_size))
    udp_hdr.dst_port = C.htons(self.dst_port)
@@ -334,6 +339,9 @@ function from_b4:new_packet()
    local ipv6_payload = ethernet_header_size + ipv6_header_size
    ipv4_hdr = cast(ipv4_header_ptr_type, ipv6.data + ipv6_payload)
    ipv4_hdr.src_ip = self.src_ipv4
+   ipv4_hdr.checksum =  0
+   ipv4_hdr.checksum = C.htons(ipsum(ipv6.data + ipv6_payload,
+      ipv4_header_size, 0))
    -- Set tunneled IPv4 source port
    udp_hdr = cast(udp_header_ptr_type, ipv6.data + (ipv6_payload + ipv4_header_size))
    udp_hdr.src_port = C.htons(self.src_portv4)

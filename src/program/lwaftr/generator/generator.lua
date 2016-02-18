@@ -9,6 +9,8 @@ local lib = require("core.lib")
 local stream = require("apps.lwaftr.stream")
 local lwconf = require("apps.lwaftr.conf")
 
+local DEFAUL_MAX_PACKETS = 10
+
 function show_usage(code)
    print(require("program.lwaftr.generator.README_inc"))
    main.exit(code)
@@ -22,23 +24,25 @@ function parse_args(args)
    function handlers.b()
       opts.from_b4 = true
    end
-   function handlers.n(arg)
-      opts.num_ips = tonumber(arg)
+   function handlers.m(arg)
+      opts.max_packets = assert(tonumber(arg), "max-packets must be a number")
    end
    function handlers.s(arg)
-      opts.packet_size = tonumber(arg)
+      opts.packet_size = assert(tonumber(arg), "packet-size must be a number")
    end
-   function handlers.m(arg)
-      opts.max_packets = tonumber(arg)
+   function handlers.D(arg)
+      opts.duration = assert(tonumber(arg), "duration must be a number")
    end
-   function handlers.p(arg)
-      opts.pcap = arg
+   function handlers.p(filename)
+      opts.pcap = filename
    end
-   function handlers.h() show_usage(0) end
-   args = lib.dogetopt(args, handlers, "bin:m:s:v:p:h",
-      { ["from-inet"]="i", ["from-b4"]="b", ["num-ips"]="n",
+   function handlers.h()
+      show_usage(0)
+   end
+   args = lib.dogetopt(args, handlers, "ibm:s:D:p:h",
+      { ["from-inet"]="i", ["from-b4"]="b",
         ["max-packets"]="m", ["packet-size"]="s",
-        pcap="p", help="h" })
+        duration="D", pcap="p", help="h" })
    return opts, args
 end
 
@@ -50,36 +54,42 @@ function run(args)
       show_usage(1)
    end
 
-   local pciaddr
    local c = config.new()
 
-   -- Default max_packets value when printing to pcap.
+   -- Set default max_packets value when printing to pcap.
    if opts.pcap and not opts.max_packets then
-      opts.max_packets = 10
+      opts.max_packets = DEFAUL_MAX_PACKETS
    end
 
+   local lwaftr_config, start_inet, psid_len, pciaddr
    if opts.from_inet then
-      if #args < 1 or #args > 4 then
-         print("#args: "..#args)
+      local num_args = 4
+      if opts.pcap then num_args = num_args - 1 end
+      if #args ~= num_args then
          show_usage(1)
       end
-      local lwaftr_config, start_inet, psid_len, _pciaddr = unpack(args)
+      lwaftr_config, start_inet, psid_len, pciaddr = unpack(args)
       local conf = lwconf.load_lwaftr_config(lwaftr_config)
       config.app(c, "generator", generator.from_inet, {
          dst_mac = conf.aftr_mac_inet_side,
          src_mac = conf.inet_mac,
          start_inet = start_inet,
-         psid_len = 6,
+         psid_len = psid_len,
          max_packets = opts.max_packets,
          num_ips = opts.num_ips,
          packet_size = opts.packet_size,
          vlan_tag = conf.vlan_tagging and conf.v4_vlan_tag,
       })
-      pciaddr = _pciaddr
    end
+
+   local start_b4, br
    if opts.from_b4 then
-      if #args < 1 or #args > 6 then show_usage(1) end
-      local lwaftr_config, start_inet, start_b4, br, psid_len, _pciaddr = unpack(args)
+      local num_args = 6
+      if opts.pcap then num_args = num_args - 1 end
+      if #args ~= num_args then
+         show_usage(1)
+      end
+      lwaftr_config, start_inet, start_b4, br, psid_len, pciaddr = unpack(args)
       local conf = lwconf.load_lwaftr_config(lwaftr_config)
       config.app(c, "generator", generator.from_b4, {
          src_mac = conf.next_hop6_mac,
@@ -93,13 +103,12 @@ function run(args)
          packet_size = opts.packet_size,
          vlan_tag = conf.vlan_tagging and conf.v6_vlan_tag,
       })
-      pciaddr = _pciaddr
    end
 
    if opts.pcap then
       config.app(c, "pcap", PcapWriter, opts.pcap)
       config.link(c, "generator.output -> pcap.input")
-      opts.duration = 1
+      opts.duration = opts.duration or 1
    else
       config.app(c, "nic", Intel82599, { pciaddr = pciaddr })
       config.link(c, "generator.output -> nic.rx")

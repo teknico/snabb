@@ -13,7 +13,6 @@ local htons = lib.htons
 
 local ffi = require("ffi")
 local C = ffi.C
-local cast = ffi.cast
 
 local ether_header_t = ffi.typeof[[
 struct {
@@ -80,10 +79,10 @@ function send_cache_trigger(r, p, mac)
 -- thru the same interface. Not sure if its ok to use that address or if there
 -- is a better way.
 
-  local eth_hdr = cast(ethernet_header_ptr_type, p.data)
+  local eth_hdr = ffi.cast(ethernet_header_ptr_type, p.data)
   local ethertype = eth_hdr.ether_type
-  local ipv4_hdr = cast(ipv4_header_ptr_type, p.data + n_ether_hdr_size)
-  local ipv6_hdr = cast(ipv6_header_ptr_type, p.data + n_ether_hdr_size)
+  local ipv4_hdr = ffi.cast(ipv4_header_ptr_type, p.data + n_ether_hdr_size)
+  local ipv6_hdr = ffi.cast(ipv6_header_ptr_type, p.data + n_ether_hdr_size)
 
   -- vMX will discard packets not matching its MAC address on the interface
   ffi.copy(eth_hdr.ether_dhost, mac, 6)
@@ -131,7 +130,7 @@ function nh_fwd:new(arg)
     ipv6_address = ipv6_address,
     description = description,
     service_mac = service_mac,
-    cache_refresh_time = tonumber(app.now()),
+    cache_refresh_time = 0,
     cache_refresh_interval = cache_refresh_interval
   }
 
@@ -148,23 +147,18 @@ function nh_fwd:push ()
   local next_hop_mac = self.next_hop_mac
   local service_mac = self.service_mac
   local mac_address = self.mac_address
-  local cache_refresh_interval = self.cache_refresh_interval
   local current_time = tonumber(app.now())
-  local cache_refresh_time = self.cache_refresh_time
 
   -- from service
   if output_wire then
     for _=1,link.nreadable(input_service) do
 
       local pkt = receive(input_service)
-      local eth_hdr = cast(ethernet_header_ptr_type, pkt.data)
+      local eth_hdr = ffi.cast(ethernet_header_ptr_type, pkt.data)
 
-      if cache_refresh_interval > 0 and output_vmx then
-        if current_time > cache_refresh_time + cache_refresh_interval then
+      if self.cache_refresh_interval > 0 and output_vmx then
+        if current_time > self.cache_refresh_time + self.cache_refresh_interval then
           self.cache_refresh_time = current_time
-          -- only required for one packet per breath
-          -- because next_hop_mac won't be learned until much later
-          cache_refresh_interval = 0
           send_cache_trigger(output_vmx, packet.clone(pkt), mac_address)
         end
       end
@@ -174,17 +168,16 @@ function nh_fwd:push ()
         -- set nh mac and send the packet out the wire
         ffi.copy(eth_hdr.ether_dhost, next_hop_mac, 6)
         transmit(output_wire, pkt)
-      elseif output_vmx and cache_refresh_interval == 0 then
+      elseif output_vmx then
         -- no nh mac. Punch it to the vMX
         transmit(output_vmx, pkt)
       else
         packet.free(pkt)
       end
-
     end
+
   elseif output_vmx then
-    -- no wire, thats ok. We run in "service pic" mode, only talking 
-    -- to the vMX
+    -- no wire, thats ok. We run in "service pic" mode: service <-> vMX
     for _=1,link.nreadable(input_service) do
       local pkt = receive(input_service)
       transmit(output_vmx, pkt)
@@ -196,10 +189,10 @@ function nh_fwd:push ()
     for _=1,link.nreadable(input_wire) do
 
       local pkt = receive(input_wire)
-      local eth_hdr = cast(ethernet_header_ptr_type, pkt.data)
+      local eth_hdr = ffi.cast(ethernet_header_ptr_type, pkt.data)
       local ethertype = eth_hdr.ether_type
-      local ipv4_hdr = cast(ipv4_header_ptr_type, pkt.data + n_ether_hdr_size)
-      local ipv6_hdr = cast(ipv6_header_ptr_type, pkt.data + n_ether_hdr_size)
+      local ipv4_hdr = ffi.cast(ipv4_header_ptr_type, pkt.data + n_ether_hdr_size)
+      local ipv6_hdr = ffi.cast(ipv6_header_ptr_type, pkt.data + n_ether_hdr_size)
       local ipv4_address = self.ipv4_address
 
       --[[
@@ -223,19 +216,19 @@ function nh_fwd:push ()
     end
   end
 
-  -- from vmx: most packets will go straight out the wire, so check
+  -- from vmx
+  -- most packets will go straight out the wire, so check
   -- for room in the outbound wire queue, even though some packets may 
   -- actually go to another app
   --
-  local cache_refresh_interval = self.cache_refresh_interval
   if output_wire and output_vmx then
     for _=1,link.nreadable(input_vmx) do
 
       local pkt = receive(input_vmx)
-      local eth_hdr = cast(ethernet_header_ptr_type, pkt.data)
+      local eth_hdr = ffi.cast(ethernet_header_ptr_type, pkt.data)
       local ethertype = eth_hdr.ether_type
-      local ipv4_hdr = cast(ipv4_header_ptr_type, pkt.data + n_ether_hdr_size)
-      local ipv6_hdr = cast(ipv6_header_ptr_type, pkt.data + n_ether_hdr_size)
+      local ipv4_hdr = ffi.cast(ipv4_header_ptr_type, pkt.data + n_ether_hdr_size)
+      local ipv6_hdr = ffi.cast(ipv6_header_ptr_type, pkt.data + n_ether_hdr_size)
 
    --[[ 
   if ethertype == n_ethertype_ipv4 then
@@ -247,7 +240,7 @@ function nh_fwd:push ()
 
       if service_mac and C.memcmp(eth_hdr.ether_dhost, service_mac, 6) == 0 then
         transmit(output_service, pkt)
-      elseif cache_refresh_interval > 0 then
+      elseif self.cache_refresh_interval > 0 then
         if ethertype == n_ethertype_ipv4 and C.memcmp(ipv4_hdr.src_ip, n_cache_src_ipv4,4) == 0 then    
           -- our magic cache next-hop resolution packet. Never send this out
           ffi.copy(self.next_hop_mac, eth_hdr.ether_dhost, 6)
@@ -273,6 +266,5 @@ function nh_fwd:push ()
     end
 
   end
-
 
 end

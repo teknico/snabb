@@ -64,7 +64,8 @@ end
 
 function open_counters (tree)
    local counters = {}
-   for _, name in ipairs({"configs", "breaths", "frees", "freebytes"}) do
+   for _, name in ipairs({"configs", "breaths", "frees", "freebytes",
+     "jitter_min", "jitter_max", "jitter_avg"}) do
       counters[name] = counter.open(tree.."/engine/"..name, 'readonly')
    end
    counters.links = {} -- These will be populated on demand.
@@ -93,7 +94,8 @@ end
 
 function get_stats (counters)
    local new_stats = {}
-   for _, name in ipairs({"configs", "breaths", "frees", "freebytes"}) do
+   for _, name in ipairs({"configs", "breaths", "frees", "freebytes",
+   "jitter_min", "jitter_max", "jitter_avg"}) do
       new_stats[name] = counter.read(counters[name])
    end
    new_stats.links = {}
@@ -107,14 +109,19 @@ function get_stats (counters)
    return new_stats
 end
 
-local global_metrics_row = {15, 15, 15}
+local global_metrics_row = {15, 15, 15, 25}
 function print_global_metrics (new_stats, last_stats)
    local frees = tonumber(new_stats.frees - last_stats.frees)
    local bytes = tonumber(new_stats.freebytes - last_stats.freebytes)
    local breaths = tonumber(new_stats.breaths - last_stats.breaths)
-   print_row(global_metrics_row, {"Kfrees/s", "freeGbytes/s", "breaths/s"})
+   local jitter_min = tonumber(new_stats.jitter_min)
+   local jitter_max = tonumber(new_stats.jitter_max)
+   local jitter_avg = tonumber(new_stats.jitter_avg)
+   print_row(global_metrics_row, {"Kfrees/s", "freeGbytes/s", "breaths/s", 
+   "Jitter [min/max/avg]"})
    print_row(global_metrics_row,
-             {float_s(frees / 1000), float_s(bytes / (1000^3)), tostring(breaths)})
+      {float_s(frees / 1000), float_s(bytes / (1000^3)), tostring(breaths),
+      tostring(jitter_min).."us / ".. tostring(jitter_max).."us / ".. tostring(jitter_avg).."us"})
 end
 
 local link_metrics_row = {31, 7, 7, 7, 7, 11}

@@ -201,8 +201,8 @@ function M_sf:init_snmp ()
    -- After a reset of the NIC, the "native" MAC address is copied to
    -- the receive address register #0 from the EEPROM
    local ral, rah = self.r.RAL[0](), self.r.RAH[0]()
-   assert(bit.band(rah, bits({ AV = 31 })) == bits({ AV = 31 }),
-          "MAC address on "..self.pciaddress.." is not valid ")
+   -- assert(bit.band(rah, bits({ AV = 31 })) == bits({ AV = 31 }),
+   --           "MAC address on "..self.pciaddress.." is not valid ")
    local mac = ffi.new("struct { uint32_t lo; uint16_t hi; }")
    mac.lo = ral
    mac.hi = bit.band(rah, 0xFFFF)

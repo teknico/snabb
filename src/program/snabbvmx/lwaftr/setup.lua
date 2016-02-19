@@ -25,6 +25,7 @@ local function load_phy(c, nic_id, interface)
     fatal(("Couldn't find device info for PCI address '%s'"):format(interface.pci))
   end
   local snmp = { directory = "/tmp" }
+--  local snmp
   print(string.format("%s ether %s", nic_id, interface.mac_address))
   if vlan then
     print(string.format("%s vlan %d", nic_id, vlan))

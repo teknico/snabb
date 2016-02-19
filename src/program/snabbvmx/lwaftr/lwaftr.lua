@@ -4,7 +4,6 @@ local S          = require("syscall")
 local config     = require("core.config")
 local lib        = require("core.lib")
 local setup      = require("program.snabbvmx.lwaftr.setup")
-local intel10g   = require("apps.intel.intel10g")
 
 local function show_usage(exit_code)
    print(require("program.snabbvmx.lwaftr.README_inc"))
@@ -35,7 +34,6 @@ end
 function parse_args(args)
    if #args == 0 then show_usage(1) end
    local conf_file, sock_path, v6_id, v6_pci, v6_mac, v4_id, v4_pci, v4_mac
-   local ring_size
    local opts = { verbosity = 0 }
    local handlers = {}
    function handlers.v () opts.verbosity = opts.verbosity + 1 end
@@ -63,16 +61,6 @@ function parse_args(args)
          fatal("Argument '--pci' was not set")
       end
    end
-   function handlers.r(arg)
-     ring_size = tonumber(arg)
-     if type(ring_size) ~= 'number' then fatal("bad ring size: " .. arg) end
-     if ring_size > 32*1024 then
-       fatal("ring size too large for hardware: " .. ring_size)
-     end
-     if math.log(ring_size)/math.log(2) % 1 ~= 0 then
-       fatal("ring size is not a power of two: " .. arg)
-     end
-   end
    function handlers.m(arg)
       mac = arg
       if not arg then
@@ -86,15 +74,15 @@ function parse_args(args)
       end
    end
    function handlers.h() show_usage(0) end
-   lib.dogetopt(args, handlers, "c:s:i:p:m:t:vD:ht",
-      { ["conf"] = "c", ["sock"] = "s", ["ring"] = "r",
+   lib.dogetopt(args, handlers, "c:s:i:p:m:vD:ht",
+      { ["conf"] = "c", ["sock"] = "s", 
         ["id"] = "i", ["pci"] = "p", ["mac"] = "m",
         verbose = "v", duration = "D", help = "h" })
-   return opts, conf_file, id, pci, mac, ring_size, sock_path
+   return opts, conf_file, id, pci, mac, sock_path
 end
 
 function run(args)
-   local opts, conf_file, id, pci, mac, ring_size, sock_path = parse_args(args)
+   local opts, conf_file, id, pci, mac, sock_path = parse_args(args)
 
    local conf = {}
    local lwconf = {}
@@ -112,6 +100,21 @@ function run(args)
 
    local c = config.new()
 
+   if conf.settings then
+     if conf.settings.ring_buffer_size then
+       local ring_buffer_size = tonumber(conf.settings.ring_buffer_size)
+       if not ring_buffer_size then fatal("bad ring size: " .. conf.settings.ring_buffer_size) end
+       if ring_buffer_size > 32*1024 then
+         fatal("ring size too large for hardware: " .. ring_buffer_size)
+       end
+       if math.log(ring_buffer_size)/math.log(2) % 1 ~= 0 then
+         fatal("ring size is not a power of two: " .. ring_buffer_size)
+       end
+       print(string.format("ring_buffer_size set to %d", ring_buffer_size))
+       require('apps.intel.intel10g').num_descriptors = ring_buffer_size
+     end
+   end
+
    conf.interface = { mac_address = mac, pci = pci, id = id }
    if dir_exists(("/sys/devices/virtual/net/%s"):format(id)) then
      conf.interface.mirror_id = id
@@ -119,15 +122,11 @@ function run(args)
 
    setup.lwaftr_app(c, conf, lwconf, sock_path )
 
-   if ring_size then
-     intel10g.num_descriptors = ring_size
-   end
-
    engine.configure(c)
 
    if opts.verbosity >= 2 then
      local function lnicui_info()
-       app.report_apps()
+       engine.report_apps()
      end
      local t = timer.new("report", lnicui_info, 1e9, 'repeating')
      timer.activate(t)

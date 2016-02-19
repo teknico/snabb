@@ -124,7 +124,7 @@ function M_sf:init ()
 
    self.redos = 0
    local mask = bits{Link_up=30}
-   for i = 1, 100 do
+   for i = 1, 120 do
       self
          :disable_interrupts()
          :global_reset()
@@ -679,7 +679,7 @@ function M_pf:init ()
    end
    self.redos = 0
    local mask = bits{Link_up=30}
-   for i = 1, 100 do
+   for i = 1, 120 do
       self
          :disable_interrupts()
          :global_reset()

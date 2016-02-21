@@ -13,6 +13,8 @@ local long_opts = {
    help = "h"
 }
 
+local ifInDiscards_start
+
 function clearterm () io.write('\027[2J') end
 
 function run (args)
@@ -70,13 +72,20 @@ end
 function open_counters (tree)
   local counters = {}
    counters.lwaftr = {}
-   for _,lwaftrspec in pairs({"lwaftr_v6", "lwaftr_v4"}) do
+   for _,lwaftrspec in pairs({"lwaftr_v6", "lwaftr_v4", "nic"}) do
       counters.lwaftr[lwaftrspec] = {}
-      for _, name
-      in ipairs({"rcvdPacket", "sentPacket", "rcvdByte", "sentByte", "droppedPacket",
-     "reassemble_ok", "reassemble_invalid", "fragment_ok", "fragment_forbidden"}) do
-         counters.lwaftr[lwaftrspec][name] =
-           counter.open(tree .."/" .. lwaftrspec .. "/" .. name, 'readonly')
+      if lwaftrspec == "nic" then
+        name = "ifInDiscards"
+        counters.lwaftr[lwaftrspec][name] =
+        counter.open(tree .. "/nic/ifInDiscards", 'readonly')
+        ifInDiscards_start = counter.read(counters.lwaftr[lwaftrspec][name])
+      else
+        for _, name
+          in ipairs({"rcvdPacket", "sentPacket", "rcvdByte", "sentByte", "droppedPacket",
+          "reassemble_ok", "reassemble_invalid", "fragment_ok", "fragment_forbidden"}) do
+          counters.lwaftr[lwaftrspec][name] =
+          counter.open(tree .."/" .. lwaftrspec .. "/" .. name, 'readonly')
+        end
       end
    end
    return counters
@@ -87,20 +96,26 @@ function get_stats (counters)
    new_stats.lwaftr = {}
    for lwaftrspec, lwaftr in pairs(counters.lwaftr) do
       new_stats.lwaftr[lwaftrspec] = {}
-      for _, name
-      in ipairs({"rcvdPacket", "sentPacket", "rcvdByte", "sentByte", "droppedPacket",
-       "reassemble_ok", "reassemble_invalid", "fragment_ok", "fragment_forbidden"}) do
-         new_stats.lwaftr[lwaftrspec][name] = counter.read(lwaftr[name])
+      if lwaftrspec == "nic" then
+        name = "ifInDiscards"
+        new_stats.lwaftr[lwaftrspec][name] = counter.read(lwaftr[name])
+      else
+        for _, name
+          in ipairs({"rcvdPacket", "sentPacket", "rcvdByte", "sentByte", "droppedPacket",
+          "reassemble_ok", "reassemble_invalid", "fragment_ok", "fragment_forbidden"}) do
+          new_stats.lwaftr[lwaftrspec][name] = counter.read(lwaftr[name])
+        end
       end
    end
    return new_stats
 end
 
-local lwaftr_metrics_row = {31, 7, 7, 7, 7, 7}
+local lwaftr_metrics_row = {31, 7, 7, 7, 7, 11}
 function print_lwaftr_metrics (new_stats, last_stats, time_delta)
    print_row(lwaftr_metrics_row,
              {"lwaftr (rx/tx/txdrop in Mpps)", "rx", "tx", "rxGb", "txGb", "txdrop"})
    for lwaftrspec, lwaftr in pairs(new_stats.lwaftr) do
+     if lwaftrspec ~= "nic" then
       if last_stats.lwaftr[lwaftrspec] then
          local rx = tonumber(new_stats.lwaftr[lwaftrspec].rcvdPacket - last_stats.lwaftr[lwaftrspec].rcvdPacket)
          local tx = tonumber(new_stats.lwaftr[lwaftrspec].sentPacket - last_stats.lwaftr[lwaftrspec].sentPacket)
@@ -111,22 +126,30 @@ function print_lwaftr_metrics (new_stats, last_stats, time_delta)
                    {lwaftrspec,
                     float_s(rx / time_delta), float_s(tx / time_delta),
                     float_s(rxbytes / time_delta / 1000 *8), float_s(txbytes / time_delta / 1000 *8),
-                    float_s(drop / time_delta)})
+                    float_l(drop / time_delta)})
       end
+     end
    end
 
    local metrics_row = {30, 20, 20}
    for lwaftrspec, lwaftr in pairs(new_stats.lwaftr) do
      if last_stats.lwaftr[lwaftrspec] then
         io.write(("\n%30s  %20s %20s\n"):format("", "Total", "per second"))
-       for _, name
-         in ipairs({"rcvdPacket", "sentPacket", "rcvdByte", "sentByte", "droppedPacket",
-          "reassemble_ok", "reassemble_invalid", "fragment_ok", "fragment_forbidden"}) do
-         local delta = tonumber(new_stats.lwaftr[lwaftrspec][name] - last_stats.lwaftr[lwaftrspec][name])
-         print_row(metrics_row, {lwaftrspec .. " " .. name,
-         int_s(new_stats.lwaftr[lwaftrspec][name]), int_s(delta)})
+        if lwaftrspec == "nic" then
+          name = "ifInDiscards"
+          local delta = tonumber(new_stats.lwaftr[lwaftrspec][name] - last_stats.lwaftr[lwaftrspec][name])
+            print_row(metrics_row, {lwaftrspec .. " " .. name,
+            int_s(new_stats.lwaftr[lwaftrspec][name] - ifInDiscards_start), int_s(delta)})
+        else
+          for _, name
+            in ipairs({"rcvdPacket", "sentPacket", "rcvdByte", "sentByte", "droppedPacket",
+            "reassemble_ok", "reassemble_invalid", "fragment_ok", "fragment_forbidden"}) do
+            local delta = tonumber(new_stats.lwaftr[lwaftrspec][name] - last_stats.lwaftr[lwaftrspec][name])
+            print_row(metrics_row, {lwaftrspec .. " " .. name,
+            int_s(new_stats.lwaftr[lwaftrspec][name]), int_s(delta)})
 
-       end
+          end
+        end
      end
    end
 end
@@ -149,4 +172,8 @@ end
 
 function float_s (n)
    return ("%.2f"):format(n)
+end
+
+function float_l (n)
+   return ("%.6f"):format(n)
 end

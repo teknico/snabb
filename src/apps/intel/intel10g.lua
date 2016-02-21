@@ -17,12 +17,15 @@ local index_set = require("lib.index_set")
 local macaddress = require("lib.macaddress")
 local mib = require("lib.ipc.shmem.mib")
 local timer = require("core.timer")
+local counter = require("core.counter")
 
 local bits, bitset = lib.bits, lib.bitset
 local band, bor, lshift = bit.band, bit.bor, bit.lshift
 
 num_descriptors = 512
 --num_descriptors = 32
+--
+ifInDiscards = counter.open("nic/ifInDiscards")
 
 -- Defaults for configurable items
 local default = {
@@ -322,7 +325,9 @@ function M_sf:init_snmp ()
                           -- available through the RX stats register.
                           -- We only read stats register #0 here.  See comment
                           -- in init_statistics()
-                          ifTable:set('ifInDiscards', self.qs.QPRDC[0]())
+                          local discards = self.qs.QPRDC[0]()
+                          ifTable:set('ifInDiscards', discards)
+                          counter.set(ifInDiscards, discards)
 
                           ifTable:set('ifInErrors', self.s.CRCERRS() +
                                    self.s.ILLERRC() + self.s.ERRBC() +

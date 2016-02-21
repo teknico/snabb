@@ -4,6 +4,7 @@ local S          = require("syscall")
 local lib        = require("core.lib")
 local pci = require("lib.hardware.pci")
 local basic_apps = require("apps.basic.basic_apps")
+local RateLimiter = require("apps.rate_limiter.rate_limiter").RateLimiter
 local generator = require("apps.nh_fwd.generator").generator
 local tap = require("apps.tap.tap").Tap
 
@@ -26,6 +27,7 @@ end
 function parse_args(args)
    if #args == 0 then show_usage(1) end
    local pciaddr, mac, ipv4, ipv6, lwaftr_ipv6, count, port, size, protocol, mtu
+   local rate = 1
    local opts = { verbosity = 0, debug = 0 }
    local handlers = {}
    function handlers.v () opts.verbosity = opts.verbosity + 1 end
@@ -66,20 +68,23 @@ function parse_args(args)
    function handlers.o(arg)
      port = tonumber(arg)
    end
+   function handlers.r(arg)
+     rate = tonumber(arg)
+   end
    function handlers.s(arg)
      size = tonumber(arg)
    end
    function handlers.h() show_usage(0) end
-   lib.dogetopt(args, handlers, "p:t:m:i:j:n:l:o:s:P:X:dvD:h",
+   lib.dogetopt(args, handlers, "p:t:m:i:j:n:l:r:o:s:P:X:dvD:h",
       { ["pci"] = "p", ["tap"] = 't', ["mac"] = "m", ["ipv4"] = "i", ["ipv6"] = "j", ["count"] = "n",
-        ["lwaftr"] = "l", 
+        ["lwaftr"] = "l", ["rate"] = "r", 
         ["port"] = "o", ["size"] = "s", ["protocol"] = "P", ["mtu"] = "X", debug = "d",
         verbose = "v", duration = "D", help = "h" })
-   return opts, pciaddr, mac, ipv4, ipv6, lwaftr_ipv6, count, port, size, protocol, mtu
+   return opts, pciaddr, mac, ipv4, ipv6, lwaftr_ipv6, count, port, size, protocol, mtu, rate
 end
 
 function run(args)
-  local opts, pciaddr, mac, ipv4, ipv6, lwaftr_ipv6, count, port, size, protocol, mtu = parse_args(args)
+  local opts, pciaddr, mac, ipv4, ipv6, lwaftr_ipv6, count, port, size, protocol, mtu, rate = parse_args(args)
   local conf = {}
 
   local c = config.new()
@@ -89,6 +94,10 @@ function run(args)
 
   config.app(c, "rx", basic_apps.Statistics)
 
+  print(string.format("rate limiting to %s Gbps", rate))
+  rate_bytes = rate * 1e9 / 8
+  config.app(c, "policer", RateLimiter, {rate = rate_bytes, bucket_capacity = rate_bytes})
+
   if pciaddr then
     local device_info = pci.device_info(pciaddr)
 
@@ -96,20 +105,20 @@ function run(args)
       fatal(("Couldn't find device information for PCI address '%s'"):format(pciaddr))
     end
     config.app(c, "nic", require(device_info.driver).driver,
-    {pciaddr = pciaddr, vmdq = false, mtu = mtu})
+    {pciaddr = pciaddr, vmdq = false, snmp = { directory = "/tmp", status_timer = 1 }, mtu = mtu})
     config.link(c, "nic.tx -> rx.input")
-    config.link(c, "generator.output -> nic.rx")
+    config.link(c, "generator.output -> policer.input")
+    config.link(c, "policer.output -> nic.rx")
 
   elseif tapaddr then
     config.app(c, "nic", tap, tapaddr)
     config.link(c, "nic.output -> rx.input")
-    config.link(c, "generator.output -> nic.input")
+    config.link(c, "generator.output -> policer.input")
+    config.link(c, "policer.output -> nic.input")
   end
 
   config.link(c, "rx.output -> generator.input")
---  config.link(c, "nic.tx -> generator.input")
 
- 
   if opts.verbosity > 0 then
      local t = timer.new("loadreport", engine.report_load, 1*1e9, 'repeating')
      timer.activate(t)
@@ -122,6 +131,7 @@ function run(args)
 
   engine.configure(c)
 
+ --  engine.busywait = true
   if opts.duration then
     engine.main({duration=opts.duration, report={showlinks=true}})
   else

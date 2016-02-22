@@ -4,7 +4,6 @@ local S          = require("syscall")
 local lib        = require("core.lib")
 local pci = require("lib.hardware.pci")
 local basic_apps = require("apps.basic.basic_apps")
-local RateLimiter = require("apps.rate_limiter.rate_limiter").RateLimiter
 local generator = require("apps.nh_fwd.generator").generator
 local tap = require("apps.tap.tap").Tap
 
@@ -89,14 +88,15 @@ function run(args)
 
   local c = config.new()
 
+  print(string.format("rate limiting to %s Gbps", rate))
+  rate_bytes = rate * 1e9 / 8
+
   config.app(c, "generator", generator, 
-  {mac = mac, ipv4 = ipv4, ipv6 = ipv6, lwaftr_ipv6 = lwaftr_ipv6, count = count, port = port, size = size, protocol = protocol, debug = opts.debug})
+  {mac = mac, ipv4 = ipv4, ipv6 = ipv6, lwaftr_ipv6 = lwaftr_ipv6, count = count, port = port, size = size, protocol = protocol, debug = opts.debug, rate = rate_bytes,
+bucket_capacity = rate_bytes})
 
   config.app(c, "rx", basic_apps.Statistics)
 
-  print(string.format("rate limiting to %s Gbps", rate))
-  rate_bytes = rate * 1e9 / 8
-  config.app(c, "policer", RateLimiter, {rate = rate_bytes, bucket_capacity = rate_bytes})
 
   if pciaddr then
     local device_info = pci.device_info(pciaddr)
@@ -107,14 +107,12 @@ function run(args)
     config.app(c, "nic", require(device_info.driver).driver,
     {pciaddr = pciaddr, vmdq = false, snmp = { directory = "/tmp", status_timer = 1 }, mtu = mtu})
     config.link(c, "nic.tx -> rx.input")
-    config.link(c, "generator.output -> policer.input")
-    config.link(c, "policer.output -> nic.rx")
+    config.link(c, "generator.output -> nic.rx")
 
   elseif tapaddr then
     config.app(c, "nic", tap, tapaddr)
     config.link(c, "nic.output -> rx.input")
-    config.link(c, "generator.output -> policer.input")
-    config.link(c, "policer.output -> nic.input")
+    config.link(c, "generator.output -> nic.input")
   end
 
   config.link(c, "rx.output -> generator.input")

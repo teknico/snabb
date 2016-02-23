@@ -63,6 +63,11 @@ function parse_args(args)
       cpu_set:set(cpu)
       S.sched_setaffinity(0, cpu_set)
    end
+   handlers['real-time'] = function(arg)
+      if not S.sched_setscheduler(0, "fifo", 1) then
+         fatal('Failed to enable real-time scheduling.  Try running as root.')
+      end
+   end
    function handlers.n(arg)
       v4_pci = arg
       if not arg then
@@ -95,7 +100,8 @@ function parse_args(args)
    lib.dogetopt(args, handlers, "b:c:n:m:vD:hir:",
       { conf = "c", ["v4-pci"] = "n", ["v6-pci"] = "m",
         verbose = "v", duration = "D", help = "h",
-        virtio = "i", ["ring-buffer-size"] = "r", cpu = 1 })
+        virtio = "i", ["ring-buffer-size"] = "r", cpu = 1,
+        ["real-time"] = 0 })
    if ring_buffer_size ~= nil then
       if opts.virtio_net then
          fatal("setting --ring-buffer-size does not work with --virtio")

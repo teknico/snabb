@@ -13,7 +13,7 @@ end
 
 local function fatal(msg)
    show_usage()
-   print(msg)
+   print('error: '..msg)
    main.exit(1)
 end
 
@@ -53,6 +53,21 @@ function parse_args(args)
          fatal(("Couldn't locate configuration file at %s"):format(conf_file))
       end
    end
+   function handlers.cpu(arg)
+      local cpu = tonumber(arg)
+      if not cpu or cpu ~= math.floor(cpu) or cpu < 0 then
+         fatal("Invalid cpu number: "..arg)
+      end
+      local cpu_set = S.sched_getaffinity()
+      cpu_set:zero()
+      cpu_set:set(cpu)
+      S.sched_setaffinity(0, cpu_set)
+   end
+   handlers['real-time'] = function(arg)
+      if not S.sched_setscheduler(0, "fifo", 1) then
+         fatal('Failed to enable real-time scheduling.  Try running as root.')
+      end
+   end
    function handlers.n(arg)
       v4_pci = arg
       if not arg then
@@ -85,13 +100,17 @@ function parse_args(args)
    lib.dogetopt(args, handlers, "b:c:n:m:vD:hir:",
       { conf = "c", ["v4-pci"] = "n", ["v6-pci"] = "m",
         verbose = "v", duration = "D", help = "h",
-        virtio = "i", ["ring-buffer-size"] = "r" })
+        virtio = "i", ["ring-buffer-size"] = "r", cpu = 1,
+        ["real-time"] = 0 })
    if ring_buffer_size ~= nil then
       if opts.virtio_net then
          fatal("setting --ring-buffer-size does not work with --virtio")
       end
       require('apps.intel.intel10g').num_descriptors = ring_buffer_size
    end
+   if not conf_file then fatal("Missing required --conf argument.") end
+   if not v4_pci then fatal("Missing required --v4-pci argument.") end
+   if not v6_pci then fatal("Missing required --v6-pci argument.") end
    return opts, conf_file, v4_pci, v6_pci
 end
 

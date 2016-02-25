@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SNABB_LWAFTR=../../../../snabb-lwaftr
+SNABB_LWAFTR="../../../../snabb lwaftr"
 TEST_CONF=../data
 TEST_DATA=../data/vlan
 TEST_OUT=/tmp

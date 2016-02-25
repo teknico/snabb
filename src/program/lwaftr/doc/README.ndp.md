@@ -1,6 +1,6 @@
 # NDP support
 
-There are conceptually two types of NDP support shipped with snabb-lwaftr.
+There are conceptually two types of NDP support shipped with Snabb lwAFTR.
 
 One listens for neighbor solicitations, and replies with neighbor advertisements.
 It replies to a solicitation if and only if the target address is one of the

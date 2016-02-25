@@ -2,7 +2,7 @@
 
 ## Finding out the PCI addresses of your NICs
 
-Snabb-lwaftr is designed to run on **Intel 82599 10-Gigabit** NICs. Find the
+Snabb lwAFTR is designed to run on **Intel 82599 10-Gigabit** NICs. Find the
 address of NICs on your system with `lspci`:
 
 ```bash

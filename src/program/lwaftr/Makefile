@@ -5,9 +5,6 @@ E= @echo
 #Q=
 #E= @:
 
-snabb-lwaftr:
-	$(Q) (cd ../../; make snabb-lwaftr; ln -sf ../../$@ program/lwaftr/$@)
-
 snabb-lwaftr-doc: doc/snabb-lwaftr.pdf doc/snabb-lwaftr.html doc/snabb-lwaftr.epub
 
 doc/snabb-lwaftr.md:
@@ -25,11 +22,11 @@ doc/snabb-lwaftr.epub: doc/snabb-lwaftr.md
 	$(E) "PANDOC    $@"
 	$(Q) (cd doc; pandoc --self-contained --css="../../../doc/style.css" -S -s --toc --chapters -o snabb-lwaftr.epub snabb-lwaftr.md)
 
-CLEAN = snabb-lwaftr doc/snabb-lwaftr.*
+CLEAN = doc/snabb-lwaftr.*
 
 clean:
 	$(E) "RM        $(CLEAN)"
 	$(Q)-rm -rf $(CLEAN)
 	$(Q) (cd ../../; make clean)
 
-.PHONY: clean snabb-lwaftr
+.PHONY: clean

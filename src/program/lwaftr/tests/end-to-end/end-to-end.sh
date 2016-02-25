@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SNABB_LWAFTR=../../../../snabb-lwaftr
+SNABB_LWAFTR="../../../../snabb lwaftr"
 TEST_BASE=../data
 TEST_OUT=/tmp
 EMPTY=${TEST_BASE}/empty.pcap

@@ -100,9 +100,11 @@ function run(args)
 
    local c = config.new()
 
+   local ring_buffer_size = 4096  
+
    if conf.settings then
      if conf.settings.ring_buffer_size then
-       local ring_buffer_size = tonumber(conf.settings.ring_buffer_size)
+       ring_buffer_size = tonumber(conf.settings.ring_buffer_size)
        if not ring_buffer_size then fatal("bad ring size: " .. conf.settings.ring_buffer_size) end
        if ring_buffer_size > 32*1024 then
          fatal("ring size too large for hardware: " .. ring_buffer_size)
@@ -110,10 +112,11 @@ function run(args)
        if math.log(ring_buffer_size)/math.log(2) % 1 ~= 0 then
          fatal("ring size is not a power of two: " .. ring_buffer_size)
        end
-       print(string.format("ring_buffer_size set to %d", ring_buffer_size))
-       require('apps.intel.intel10g').num_descriptors = ring_buffer_size
      end
    end
+
+   print(string.format("ring_buffer_size set to %d", ring_buffer_size))
+   require('apps.intel.intel10g').num_descriptors = ring_buffer_size
 
    conf.interface = { mac_address = mac, pci = pci, id = id }
    if dir_exists(("/sys/devices/virtual/net/%s"):format(id)) then

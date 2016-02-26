@@ -57,19 +57,21 @@ function lwaftr_app(c, conf, lwconf, sock_path)
 
   if conf.ipv4_interface or conf.ipv6_interface then
 
+    local mirror = false
     if mirror_id then
+      mirror = true
       config.app(c, "Mirror", Tap, mirror_id)
       config.app(c, "Sink", basic_apps.Sink)
 --     config.app(c, "Join", basic_apps.Join)
 --     config.link(c, "Join.out -> Mirror.input")
       config.link(c, "Mirror.output -> Sink.input")
+      config.link(c, "nic_v4v6.mirror -> Mirror.input")
       print(string.format("mirror port %s found", mirror_id))
     end
 
-    config.app(c, "nic_v4v6", v4v6, { description = "nic_v4v6", mirror = true })
+    config.app(c, "nic_v4v6", v4v6, { description = "nic_v4v6", mirror = mirror })
     config.link(c, chain_output .. " -> nic_v4v6.input")
     config.link(c, "nic_v4v6.output -> " .. chain_input)
-    config.link(c, "nic_v4v6.mirror -> Mirror.input")
 --    config.link(c, "nic_v4v6.mirror -> Join.input.nic")
     v4_output, v6_output = "nic_v4v6.v4", "nic_v4v6.v6"
     v4_input, v6_input   = "nic_v4v6.v4", "nic_v4v6.v6"
@@ -138,9 +140,16 @@ function lwaftr_app(c, conf, lwconf, sock_path)
     chain_input, chain_output = "vmx_v4v6.input", "vmx_v4v6.output"
   end
 
-  config.app(c, virt_id, VhostUser, {socket_path=sock_path:format(conf.interface.id)})
-  config.link(c, virt_id .. ".tx -> " .. chain_input)
-  config.link(c, chain_output .. " -> " .. virt_id  .. ".rx")
+  if sock_path then
+    config.app(c, virt_id, VhostUser, {socket_path=sock_path:format(conf.interface.id)})
+    config.link(c, virt_id .. ".tx -> " .. chain_input)
+    config.link(c, chain_output .. " -> " .. virt_id  .. ".rx")
+  else
+    config.app(c, "DummyVhost", basic_apps.Sink)
+    config.link(c, "DummyVhost" .. ".tx -> " .. chain_input)
+    config.link(c, chain_output .. " -> " .. "DummyVhost"  .. ".rx")
+    print("running without vMX (no vHostUser sock_path set)")
+  end
 
 end
 

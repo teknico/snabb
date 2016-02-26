@@ -182,6 +182,15 @@ function generator:new(arg)
 
   local ipv6_ipv4_udp_hdr, ipv6_ipv4_icmp_hdr
 
+  local ipv4_packet_sizes = { 64, 64, 64, 64, 64, 64, 64, 594, 594, 594, 1500 }
+  local total_length = 0
+  local total_packet_count = 0
+  for _,size in ipairs(ipv4_packet_sizes) do
+    -- count for IPv4 and IPv6 packets (40 bytes IPv6 encap header)
+    total_length = total_length + size * 2 + 40
+    total_packet_count = total_packet_count + 2
+  end
+
   if protocol == 'udp' then
     ipv6_ipv4_hdr.protocol = 17  -- UDP(17)
     ipv6_ipv4_udp_hdr = cast(udp_header_ptr_type, ipv6_pkt.data + 34 + ipv6_header_size)
@@ -222,6 +231,9 @@ function generator:new(arg)
     rate = conf.rate,
     bucket_capacity = conf.bucket_capacity,
     bucket_content = conf.initial_capacity,
+    ipv4_packet_sizes = ipv4_packet_sizes,
+    total_length = total_length,
+    total_packet_count = total_packet_count,
     debug = debug
   }
   return setmetatable(o, {__index=generator})
@@ -257,11 +269,10 @@ function generator:push ()
     self.last_time = cur_now
   end
 
-  local length = self.ipv4_pkt_length + self.ipv6_pkt_length
+  while link.nwritable(output) > self.total_packet_count and
+    self.total_length <= self.bucket_content do
 
-  while not link.full(output) and length <= self.bucket_content do
-
-      self.bucket_content = self.bucket_content - length
+      self.bucket_content = self.bucket_content - self.total_length
 
       ipv4_hdr.dst_ip = self.ipv4_address 
       ipv6_ipv4_hdr.src_ip = self.ipv4_address 
@@ -283,41 +294,47 @@ function generator:push ()
         ipv6_ipv4_icmp_hdr.checksum =  C.htons(ipsum(self.ipv6_pkt.data + 34 + ipv6_header_size, 8, 0))
       end
 
-      ipv4_hdr.checksum =  0
-      ipv4_hdr.checksum = C.htons(ipsum(self.ipv4_pkt.data + 14, 20, 0))
-
       if debug > 1 then
         print(string.format("sending packet for %s port %d payload %d bytes", ipv4:ntop(ipv4_hdr.dst_ip), C.ntohs(udp_hdr.dst_port), C.ntohs(udp_hdr.len) ))
         C.usleep(10000)
       end
 
-      local ipv4_pkt = packet.allocate()
-      ipv4_pkt.length = self.ipv4_pkt_length
-      ffi.copy(ipv4_pkt.data, self.ipv4_pkt.data, ipv4_pkt.length)
+      for _,size in ipairs(self.ipv4_packet_sizes) do
 
-      local ipv6_pkt = packet.allocate()
-      ipv6_pkt.length = self.ipv6_pkt_length
-      ffi.copy(ipv6_pkt.data, self.ipv6_pkt.data, ipv6_pkt.length)
+        ipv4_hdr.total_length = C.htons(size)
+        ipv4_udp_hdr.len = C.htons(size - 28)
+        ipv6_hdr.payload_length = C.htons(size)
+        ipv6_ipv4_hdr.total_length = C.htons(size)
+        ipv6_ipv4_udp_hdr.len = C.htons(size - 28)
+        self.ipv4_pkt.length = size + 14
+        self.ipv6_pkt.length = size + 54
 
-      self.current_count = self.current_count + 1
-      self.current_port = self.current_port + self.port
+        ipv4_hdr.checksum =  0
+        ipv4_hdr.checksum = C.htons(ipsum(self.ipv4_pkt.data + 14, 20, 0))
+        local ipv4_pkt = packet.clone(self.ipv4_pkt)
+        local ipv6_pkt = packet.clone(self.ipv6_pkt)
 
-      self.ipv6_address_running = inc_ipv6(self.ipv6_address_running)
+        self.current_count = self.current_count + 1
+        self.current_port = self.current_port + self.port
 
-      if self.current_port > 65535 then
-        self.current_port = self.port
-        self.ipv4_address_offset = self.ipv4_address_offset + 1
-      end
+        self.ipv6_address_running = inc_ipv6(self.ipv6_address_running)
 
-      if self.current_count >= self.count then
-        self.current_count = 0
-        self.current_port = self.port
-        self.ipv4_address_offset = 0
-        ffi.copy(self.ipv6_address_running, self.ipv6_address, 16)
-      end
+        if self.current_port > 65535 then
+          self.current_port = self.port
+          self.ipv4_address_offset = self.ipv4_address_offset + 1
+        end
 
-      transmit(output, ipv6_pkt)
-      transmit(output, ipv4_pkt)
+        if self.current_count >= self.count then
+          self.current_count = 0
+          self.current_port = self.port
+          self.ipv4_address_offset = 0
+          ffi.copy(self.ipv6_address_running, self.ipv6_address, 16)
+        end
+
+        transmit(output, ipv6_pkt)
+        transmit(output, ipv4_pkt)
+
+      end 
   end
 end
 

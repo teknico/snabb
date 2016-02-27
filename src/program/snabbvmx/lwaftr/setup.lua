@@ -13,7 +13,7 @@ local ipv6_apps  = require("apps.lwaftr.ipv6_apps")
 local ethernet   = require("lib.protocol.ethernet")
 local nh_fwd     = require("apps.nh_fwd.nh_fwd").nh_fwd
 local v4v6       = require("apps.nh_fwd.v4v6").v4v6
-local Tap        = require("apps.tap.tap").Tap
+local tap        = require("apps.tap.tap")
 
 local function load_phy(c, nic_id, interface)
 
@@ -36,10 +36,12 @@ local function load_phy(c, nic_id, interface)
 
 end
 
-function lwaftr_app(c, conf, lwconf, sock_path)
+function lwaftr_app(c, conf, lwconf, sock_path, vmxtap)
 
   assert(type(conf) == 'table')
   assert(type(lwconf) == 'table')
+
+  print (string.format("vmxtap is set to %s (in lwaftr_app)", vmxtap))
 
   if lwconf.binding_table then
     conf.preloaded_binding_table = bt.load(lwconf.binding_table)
@@ -60,7 +62,7 @@ function lwaftr_app(c, conf, lwconf, sock_path)
     local mirror = false
     if mirror_id then
       mirror = true
-      config.app(c, "Mirror", Tap, mirror_id)
+      config.app(c, "Mirror", tap.Tap, mirror_id)
       config.app(c, "Sink", basic_apps.Sink)
 --     config.app(c, "Join", basic_apps.Join)
 --     config.link(c, "Join.out -> Mirror.input")
@@ -136,7 +138,6 @@ function lwaftr_app(c, conf, lwconf, sock_path)
     config.link(c, "vmx_v4v6.v6 -> " .. v6_input)
     config.link(c, v4_output .. " -> vmx_v4v6.v4")
     config.link(c, "vmx_v4v6.v4 -> " .. v4_input)
---    config.link(c, "vmx_v4v6.mirror -> Join.input.vmx")
     chain_input, chain_output = "vmx_v4v6.input", "vmx_v4v6.output"
   end
 
@@ -145,10 +146,17 @@ function lwaftr_app(c, conf, lwconf, sock_path)
     config.link(c, virt_id .. ".tx -> " .. chain_input)
     config.link(c, chain_output .. " -> " .. virt_id  .. ".rx")
   else
-    config.app(c, "DummyVhost", basic_apps.Sink)
-    config.link(c, "DummyVhost" .. ".tx -> " .. chain_input)
-    config.link(c, chain_output .. " -> " .. "DummyVhost"  .. ".rx")
-    print("running without vMX (no vHostUser sock_path set)")
+    if vmxtap then
+      config.app(c, virt_id, tap.Tap, vmxtap)
+      config.link(c, virt_id .. ".output -> " .. chain_input)
+      config.link(c, chain_output .. " -> " .. virt_id  .. ".input")
+      print(string.format("running vMX via tap interface %s", vmxtap))
+    else
+      config.app(c, "DummyVhost", basic_apps.Sink)
+      config.link(c, "DummyVhost" .. ".tx -> " .. chain_input)
+      config.link(c, chain_output .. " -> " .. "DummyVhost"  .. ".rx")
+      print("running without vMX (no vHostUser sock_path set)")
+    end
   end
 
 end

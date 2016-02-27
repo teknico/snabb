@@ -33,7 +33,7 @@ end
 
 function parse_args(args)
    if #args == 0 then show_usage(1) end
-   local conf_file, sock_path, v6_id, v6_pci, v6_mac, v4_id, v4_pci, v4_mac
+   local conf_file, sock_path, mac, id, pci, vmxtap
    local opts = { verbosity = 0 }
    local handlers = {}
    function handlers.v () opts.verbosity = opts.verbosity + 1 end
@@ -73,16 +73,23 @@ function parse_args(args)
          fatal("Argument '--sock' was not set")
       end
    end
+   function handlers.t(arg)
+      vmxtap = arg
+      if not arg then
+         fatal("Argument '--tap' was not set")
+      end
+   end
    function handlers.h() show_usage(0) end
-   lib.dogetopt(args, handlers, "c:s:i:p:m:vD:ht",
-      { ["conf"] = "c", ["sock"] = "s", 
+   lib.dogetopt(args, handlers, "c:s:t:i:p:m:vD:h",
+      { ["conf"] = "c", ["sock"] = "s", ["tap"] = "t",
         ["id"] = "i", ["pci"] = "p", ["mac"] = "m",
         verbose = "v", duration = "D", help = "h" })
-   return opts, conf_file, id, pci, mac, sock_path
+   return opts, conf_file, id, pci, mac, sock_path, vmxtap
 end
 
 function run(args)
-   local opts, conf_file, id, pci, mac, sock_path = parse_args(args)
+   local opts, conf_file, id, pci, mac, sock_path, vmxtap = parse_args(args)
+
 
    local conf = {}
    local lwconf = {}
@@ -123,7 +130,8 @@ function run(args)
      conf.interface.mirror_id = id
    end
 
-   setup.lwaftr_app(c, conf, lwconf, sock_path )
+   print (string.format("vmxtap is set to %s", vmxtap))
+   setup.lwaftr_app(c, conf, lwconf, sock_path, vmxtap )
 
    engine.configure(c)
 

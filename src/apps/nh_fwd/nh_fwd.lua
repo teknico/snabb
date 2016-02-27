@@ -143,15 +143,49 @@ function nh_fwd:push ()
   local input_wire, output_wire = self.input.wire, self.output.wire
   local input_vmx, output_vmx = self.input.vmx, self.output.vmx
 
-  if not output_vmx then
-    print(string.format("%s: output_vmx is empty!!"))
-  end
-
   local description = self.description
   local next_hop_mac = self.next_hop_mac
   local service_mac = self.service_mac
   local mac_address = self.mac_address
   local current_time = tonumber(app.now())
+
+  -- from vmx
+  if input_vmx then
+    for _=1,link.nreadable(input_vmx) do
+      local pkt = receive(input_vmx)
+      local eth_hdr = ffi.cast(ethernet_header_ptr_type, pkt.data)
+      local ethertype = eth_hdr.ether_type
+      local ipv4_hdr = ffi.cast(ipv4_header_ptr_type, pkt.data + n_ether_hdr_size)
+      local ipv6_hdr = ffi.cast(ipv6_header_ptr_type, pkt.data + n_ether_hdr_size)
+
+      --[[ 
+      if ethertype == n_ethertype_ipv4 then
+      print(string.format("from vmx ipv4 %s", ipv4:ntop(ipv4_hdr.dst_ip)))
+      elseif ethertype == n_ethertype_ipv6 then
+      print(string.format("from vmx ipv6 %s", ipv6:ntop(ipv6_hdr.dst_ip)))
+      end
+      --]]
+
+      if service_mac and C.memcmp(eth_hdr.ether_dhost, service_mac, 6) == 0 then
+        transmit(output_service, pkt)
+      elseif self.cache_refresh_interval > 0 then
+        if ethertype == n_ethertype_ipv4 and C.memcmp(ipv4_hdr.src_ip, n_cache_src_ipv4,4) == 0 then    
+          -- our magic cache next-hop resolution packet. Never send this out
+          ffi.copy(self.next_hop_mac, eth_hdr.ether_dhost, 6)
+          -- print(description .. " learning ipv4 nh mac address " .. ethernet:ntop(self.next_hop_mac))
+          packet.free(pkt)
+        elseif ethertype == n_ethertype_ipv6 and C.memcmp(ipv6_hdr.src_ip, n_cache_src_ipv6,16) == 0 then
+          ffi.copy(self.next_hop_mac, eth_hdr.ether_dhost, 6)
+          -- print(description .. " learning ipv6 nh mac address " .. ethernet:ntop(self.next_hop_mac))
+          packet.free(pkt)
+        else
+          transmit(output_wire, pkt)
+        end
+      else
+        transmit(output_wire, pkt)
+      end
+    end
+  end
 
   -- from wire
   for _=1,link.nreadable(input_wire) do
@@ -204,42 +238,5 @@ function nh_fwd:push ()
     end
   end
 
-  -- from vmx
-  if input_vmx then
-    for _=1,link.nreadable(input_vmx) do
-      local pkt = receive(input_vmx)
-      local eth_hdr = ffi.cast(ethernet_header_ptr_type, pkt.data)
-      local ethertype = eth_hdr.ether_type
-      local ipv4_hdr = ffi.cast(ipv4_header_ptr_type, pkt.data + n_ether_hdr_size)
-      local ipv6_hdr = ffi.cast(ipv6_header_ptr_type, pkt.data + n_ether_hdr_size)
-
-      --[[ 
-      if ethertype == n_ethertype_ipv4 then
-      print(string.format("from vmx ipv4 %s", ipv4:ntop(ipv4_hdr.dst_ip)))
-      elseif ethertype == n_ethertype_ipv6 then
-      print(string.format("from vmx ipv6 %s", ipv6:ntop(ipv6_hdr.dst_ip)))
-      end
-      --]]
-
-      if service_mac and C.memcmp(eth_hdr.ether_dhost, service_mac, 6) == 0 then
-        transmit(output_service, pkt)
-      elseif self.cache_refresh_interval > 0 then
-        if ethertype == n_ethertype_ipv4 and C.memcmp(ipv4_hdr.src_ip, n_cache_src_ipv4,4) == 0 then    
-          -- our magic cache next-hop resolution packet. Never send this out
-          ffi.copy(self.next_hop_mac, eth_hdr.ether_dhost, 6)
-          -- print(description .. " learning ipv4 nh mac address " .. ethernet:ntop(self.next_hop_mac))
-          packet.free(pkt)
-        elseif ethertype == n_ethertype_ipv6 and C.memcmp(ipv6_hdr.src_ip, n_cache_src_ipv6,16) == 0 then
-          ffi.copy(self.next_hop_mac, eth_hdr.ether_dhost, 6)
-          -- print(description .. " learning ipv6 nh mac address " .. ethernet:ntop(self.next_hop_mac))
-          packet.free(pkt)
-        else
-          transmit(output_wire, pkt)
-        end
-      else
-        transmit(output_wire, pkt)
-      end
-    end
-  end
 
 end

@@ -149,6 +149,36 @@ function nh_fwd:push ()
   local mac_address = self.mac_address
   local current_time = tonumber(app.now())
 
+
+  -- from wire
+  for _=1,link.nreadable(input_wire) do
+    local pkt = receive(input_wire)
+    local eth_hdr = ffi.cast(ethernet_header_ptr_type, pkt.data)
+    local ethertype = eth_hdr.ether_type
+    local ipv4_hdr = ffi.cast(ipv4_header_ptr_type, pkt.data + n_ether_hdr_size)
+    local ipv6_hdr = ffi.cast(ipv6_header_ptr_type, pkt.data + n_ether_hdr_size)
+    local ipv4_address = self.ipv4_address
+
+    --[[
+    if ethertype == n_ethertype_ipv4 then
+    print(string.format("ipv4 %s", ipv4:ntop(ipv4_hdr.dst_ip)))
+    elseif ethertype == n_ethertype_ipv6 then
+    print(string.format("ipv6 %s", ipv6:ntop(ipv6_hdr.dst_ip)))
+    end
+    --]]
+
+    if ethertype == n_ethertype_ipv4 and ipv4_address and C.memcmp(ipv4_hdr.dst_ip, ipv4_address, 4) ~= 0 then
+      transmit(output_service, pkt)
+    elseif ethertype == n_ethertype_ipv6 and 
+      (ipv6_hdr.next_header == n_ipencap or ipv6_hdr.next_header == n_ipfragment) then
+      transmit(output_service, pkt)
+    elseif output_vmx then
+      transmit(output_vmx, pkt)
+    else
+      packet.free(pkt)
+    end
+  end
+
   -- from vmx
   if input_vmx then
     for _=1,link.nreadable(input_vmx) do
@@ -186,36 +216,6 @@ function nh_fwd:push ()
       end
     end
   end
-
-  -- from wire
-  for _=1,link.nreadable(input_wire) do
-    local pkt = receive(input_wire)
-    local eth_hdr = ffi.cast(ethernet_header_ptr_type, pkt.data)
-    local ethertype = eth_hdr.ether_type
-    local ipv4_hdr = ffi.cast(ipv4_header_ptr_type, pkt.data + n_ether_hdr_size)
-    local ipv6_hdr = ffi.cast(ipv6_header_ptr_type, pkt.data + n_ether_hdr_size)
-    local ipv4_address = self.ipv4_address
-
-    --[[
-    if ethertype == n_ethertype_ipv4 then
-    print(string.format("ipv4 %s", ipv4:ntop(ipv4_hdr.dst_ip)))
-    elseif ethertype == n_ethertype_ipv6 then
-    print(string.format("ipv6 %s", ipv6:ntop(ipv6_hdr.dst_ip)))
-    end
-    --]]
-
-    if ethertype == n_ethertype_ipv4 and ipv4_address and C.memcmp(ipv4_hdr.dst_ip, ipv4_address, 4) ~= 0 then
-      transmit(output_service, pkt)
-    elseif ethertype == n_ethertype_ipv6 and 
-      (ipv6_hdr.next_header == n_ipencap or ipv6_hdr.next_header == n_ipfragment) then
-      transmit(output_service, pkt)
-    elseif output_vmx then
-      transmit(output_vmx, pkt)
-    else
-      packet.free(pkt)
-    end
-  end
-
   -- from service
   for _=1,link.nreadable(input_service) do
     local pkt = receive(input_service)

@@ -21,13 +21,11 @@ return {
   lwaftr = "snabbvmx-lwaftr-em3-em4.conf",
          ipv6_interface = {
            ipv6_address = "fc00::100",
-           description = "b4",
            next_hop_cache = true,
            cache_refresh_interval = 10,
          },
          ipv4_interface = {
            ipv4_address = "10.0.1.1",
-           description = "aftr",
            service_mac = "44:44:44:44:44:44",
            vlan = 1,
          },

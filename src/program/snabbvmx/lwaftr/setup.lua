@@ -11,7 +11,7 @@ local bt         = require("apps.lwaftr.binding_table")
 local ipv4_apps  = require("apps.lwaftr.ipv4_apps")
 local ipv6_apps  = require("apps.lwaftr.ipv6_apps")
 local ethernet   = require("lib.protocol.ethernet")
-local nh_fwd     = require("apps.nh_fwd.nh_fwd").nh_fwd
+local nh_fwd     = require("apps.nh_fwd.nh_fwd")
 local v4v6       = require("apps.nh_fwd.v4v6").v4v6
 local tap        = require("apps.tap.tap")
 
@@ -113,12 +113,12 @@ function lwaftr_app(c, conf, lwconf, sock_path, vmxtap)
 
   if conf.ipv4_interface and conf.ipv6_interface and conf.preloaded_binding_table then
     print("lwaftr service enabled")
-    config.app(c, "nh_fwd6", nh_fwd, conf.ipv6_interface)
+    config.app(c, "nh_fwd6", nh_fwd.nh_fwd6, conf.ipv6_interface)
     config.link(c, v6_output .. " -> nh_fwd6.wire")
     config.link(c, "nh_fwd6.wire -> " .. v6_input)
     v6_input, v6_output = "nh_fwd6.vmx", "nh_fwd6.vmx"
 
-    config.app(c, "nh_fwd4", nh_fwd, conf.ipv4_interface)
+    config.app(c, "nh_fwd4", nh_fwd.nh_fwd4, conf.ipv4_interface)
     config.link(c, v4_output .. " -> nh_fwd4.wire")
     config.link(c, "nh_fwd4.wire -> " .. v4_input)
     v4_input, v4_output = "nh_fwd4.vmx", "nh_fwd4.vmx"

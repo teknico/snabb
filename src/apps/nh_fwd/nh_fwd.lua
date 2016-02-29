@@ -53,7 +53,6 @@ local ipv6_header_ptr_type = ffi.typeof("$*", ipv6hdr_t)
 local n_ether_hdr_size = 14
 local n_ipv4_hdr_size = 20
 local n_ethertype_ipv4 = htons(0x0800)
-local n_ethertype_ipv6 = htons(0x86DD)
 local n_ipencap = 4
 local n_ipfragment = 44
 local n_cache_src_ipv4 = ipv4:pton("0.0.0.0")
@@ -277,7 +276,7 @@ function nh_fwd4:push ()
     local ipv4_address = self.ipv4_address
 
     -- print(string.format("ipv4 %s", ipv4:ntop(ipv4_hdr.dst_ip)))
-    if C.memcmp(ipv4_hdr.dst_ip, ipv4_address, 4) ~= 0 then
+    if eth_hdr.ether_type == n_ethertype_ipv4 and C.memcmp(ipv4_hdr.dst_ip, ipv4_address, 4) ~= 0 then
       transmit(output_service, pkt)
     elseif output_vmx then
       transmit(output_vmx, pkt)

@@ -13,7 +13,7 @@ See [README.running.md](README.running.md).
 In one server, start the lwAFTR:
 
 ```
-$ sudo taskset -c 1 ./src/snabb-lwaftr run -v \
+$ sudo taskset -c 1 ./src/snabb lwaftr run -v \
     --conf program/lwaftr/tests/data/icmp_on_fail.conf \
     --v4-pci 0000:02:00.0 --v6-pci 0000:02:00.1
 ```
@@ -24,7 +24,7 @@ NIC.
 In the other server, run the `loadtest` command:
 
 ```
-$ sudo taskset -c 1 ./snabb-lwaftr loadtest -D 1 -b 10e9 -s 0.2e9 \
+$ sudo taskset -c 1 ./snabb lwaftr loadtest -D 1 -b 10e9 -s 0.2e9 \
     program/lwaftr/tests/benchdata/ipv4-0550.pcap "NIC 0" "NIC 1" 02:00.0 \
     program/lwaftr/tests/benchdata/ipv6-0550.pcap "NIC 1" "NIC 0" 02:00.1
 ```
@@ -130,12 +130,12 @@ more information.
 
 To get an idea of the raw speed of the lwaftr without interaction with NICs,
 or check the impact of changes on a development machine that may not have
-Intel 82599 NICs, `snabb-lwaftr bench` may be used:
+Intel 82599 NICs, `snabb lwaftr bench` may be used:
 
 ### Small binding table
 
 ```bash
-$ sudo ./snabb-lwaftr bench program/lwaftr/tests/data/icmp_on_fail.conf \
+$ sudo ./snabb lwaftr bench program/lwaftr/tests/data/icmp_on_fail.conf \
    program/lwaftr/tests/benchdata/ipv4-0550.pcap \
    program/lwaftr/tests/benchdata/ipv6-0550.pcap
 
@@ -158,7 +158,7 @@ Time (s),Decapsulation MPPS,Decapsulation Gbps,Encapsulation MPPS,Encapsulation 
 A binding table of 10^6 entries testing 20K softwires.
 
 ```bash
-$ sudo ./snabb-lwaftr bench lwaftr.conf from-inet-0550.pcap from-b4-0550.pcap 
+$ sudo ./snabb lwaftr bench lwaftr.conf from-inet-0550.pcap from-b4-0550.pcap 
 loading compiled binding table from ./binding_table.o
 compiled binding table ./binding_table.o is up to date.
 Time (s),Decapsulation MPPS,Decapsulation Gbps,Encapsulation MPPS,Encapsulation Gbps

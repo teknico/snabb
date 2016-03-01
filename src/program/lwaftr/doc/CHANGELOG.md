@@ -34,13 +34,13 @@ A bug fix and performance improvement release.
 
 ## [2.2] - 2016-02-11
 
-Adds `--ring-buffer-size` argument to `snabb-lwaftr run` which can
+Adds `--ring-buffer-size` argument to `snabb lwaftr run` which can
 increase the receive queue size.  This won't solve packet loss when the
 lwaftr is incapable of handling incoming throughput, but it might reduce
 packet loss due to jitter in the `breathe()` times.  The default size is
 512 packets; any power of 2 up to 32K is accepted.
 
-Also, fix `snabb-lwaftr run -v -v` (multiple `-v` options).  This will
+Also, fix `snabb lwaftr run -v -v` (multiple `-v` options).  This will
 periodically print packet loss statistics to the console.  This can
 measure ingress packet loss as it is taken from the NIC counters.
 
@@ -73,7 +73,7 @@ bug-fixes, notable additions include:
  * Support for ingress and egress filters specified in `pflang`, the
    packet filtering language of language of `tcpdump`.
 
- * Ability to reload the binding table via a `snabb-lwaftr control`
+ * Ability to reload the binding table via a `snabb lwaftr control`
    command.
 
 ## [1.2] - 2015-12-10

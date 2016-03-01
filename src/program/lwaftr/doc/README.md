@@ -67,8 +67,8 @@ git checkout lwaftr_starfruit
 make
 ```
 
-That's all!  You'll find a self-contained `snabb-lwaftr` binary in your
-current directory that you can copy whereever you like.
+That's all!  You'll find a self-contained `snabb` binary in your current
+directory that you can copy whereever you like.
 
 We're working on merging to upstream snabb; follow the progress in [this GitHub issue](https://github.com/Igalia/snabbswitch/issues/215).
 

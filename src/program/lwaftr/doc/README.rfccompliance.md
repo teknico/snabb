@@ -1,6 +1,6 @@
 # RFC 7596 compliance
 
-**Snabb-lwaftr** aims to be fully [RFC 7596](https://tools.ietf.org/html/rfc7596)
+**Snabb lwAFTR** aims to be fully [RFC 7596](https://tools.ietf.org/html/rfc7596)
 compliant. As alpha software, there are a number of limitations, and it does
 not aim to be compliant with all other relevant RFCs.
 
@@ -23,7 +23,7 @@ then its binding table MUST be created as part of this process.
 For all provisioning processes, the lifetime of binding table entries MUST
 be synchronized with the lifetime of address allocations."_
 
-Snabb-lwaftr alpha does not participate in provisioning process. Its binding
+Snabb lwAFTR alpha does not participate in provisioning process. Its binding
 table information is found in a text file, which could be updated out of
 band by the user.
 
@@ -39,7 +39,7 @@ siderations (referencing RFC 2473)
 7.1 Tunneling: Covering tunneling and Traffic Class mapping between
 IPv4 and IPv6 (referencing RFC 2473). Also see RFC 2983"._
 
-It is believed that snabb-lwaftr alpha is fully compatible with this.
+It is believed that Snabb lwAFTR alpha is fully compatible with this.
 It does not change its internal state (such as MTU settings or TTL settings)
 in response to incoming ICMP, but it is not required to by [RFC 2473](https://tools.ietf.org/html/rfc2473).
 IPv6 fragments are reassembled before being processed, as required.
@@ -53,7 +53,7 @@ _"If no match is found [for an IPv4-in-IPv6 packet from the lwB4] (e.g.,
 no matching IPv4 address entry, port out of range), the lwAFTR MUST
 discard or implement a policy (such as redirection) on the packet."_
 
-Snabb-lwaftr alpha discards these packets.
+Snabb lwAFTR alpha discards these packets.
 
 ----
 
@@ -148,7 +148,7 @@ ICMPv6 packets are up to 1280 bytes.
 
 ----
 
-While not an RFC, snabb-lwaftr allows the lwaftr to have multiple IPv6
+While not an RFC, Snabb lwAFTR allows the lwaftr to have multiple IPv6
 addresses associated with various B4s, as described in
 [draft-farrer-softwire-br-multiendpoints-01](https://tools.ietf.org/html/draft-farrer-softwire-br-multiendpoints-01).
 
@@ -159,9 +159,9 @@ addresses associated with various B4s, as described in
 _"The tunnel entry-point node performs Path MTU discovery on the path
 between the tunnel entry-point and exit-point nodes [PMTU-Spec], [ICMP-Spec]."_
 
-Snabb-lwaftr alpha does not do Path MTU discovery.
+Snabb lwAFTR alpha does not do Path MTU discovery.
 
-Snabb-lwaftr alpha is to be run in controlled environments, where the whole
+Snabb lwAFTR alpha is to be run in controlled environments, where the whole
 IPv6 network it connects to shares one MTU, mitigating the impact of the lack
 of path MTU discovery. This will be addressed in a future release.
 
@@ -171,7 +171,7 @@ Fragment bit of IPv4 packets.
 
 ----
 
-Snabb-lwaftr alpha is assumed to connect to exactly one host with a known MAC
+Snabb lwAFTR alpha is assumed to connect to exactly one host with a known MAC
 address on each interface. Later work will include ARP/NDP support and remove
 this limitation.
 

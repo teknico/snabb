@@ -59,22 +59,26 @@ function v4v6:push ()
   local v4out, v6out = self.output.v4, self.output.v6
   local input, output = self.input.input, self.output.output
   local mirror
+  local ipv4_num = 0
   if self.mirror then
     mirror = self.output.mirror
+    ipv4_num = v4v6_mirror.ipv4
   end
-  local ipv4_num = v4v6_mirror.ipv4
 
   -- v4v6
   for _=1,link.nreadable(input) do
     local pkt = receive(input)
     local payload = pkt.data + o_ethernet_ethertype
-    if v6out and ffi.cast(uint16_ptr_t, payload)[0] == o_ethertype_ipv6 then
-      if mirror and ipv4_num > 0 then
+    if ffi.cast(uint16_ptr_t, payload)[0] == o_ethertype_ipv6 then
+      if ipv4_num > 0 then
         mirror_v6_packet(pkt, mirror, ipv4_num)
       end
       transmit(v6out, pkt)
     else
       -- IPv4, ARP
+      if ipv4_num > 0 then
+        mirror_v4_packet(pkt, mirror, ipv4_num)
+      end
       transmit(v4out, pkt)
     end
   end
@@ -82,7 +86,7 @@ function v4v6:push ()
   -- v4
   for _=1,link.nreadable(v4in) do
     local pkt = receive(v4in)
-    if mirror and ipv4_num > 0 then
+    if ipv4_num > 0 then
       mirror_v4_packet(pkt, mirror, ipv4_num)
     end
     transmit(output, pkt)
@@ -91,7 +95,7 @@ function v4v6:push ()
   -- v6
   for _=1,link.nreadable(v6in) do
     local pkt = receive(v6in)
-    if mirror and ipv4_num > 0 then
+    if ipv4_num > 0 then
       mirror_v6_packet(pkt, mirror, ipv4_num)
     end
     transmit(output, pkt)

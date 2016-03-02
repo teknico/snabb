@@ -107,7 +107,7 @@ function run(args)
 
    local c = config.new()
 
-   local ring_buffer_size = 4096  
+   local ring_buffer_size = 2048
 
    if conf.settings then
      if conf.settings.ring_buffer_size then

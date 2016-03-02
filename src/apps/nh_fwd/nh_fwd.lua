@@ -251,7 +251,13 @@ function nh_fwd6:push ()
       ffi.copy(eth_hdr.ether_dhost, next_hop_mac, 6)
       transmit(output_wire, pkt)
     else
-      packet.free(pkt)
+      if self.cache_refresh_interval == 0 and output_vmx then
+        -- set nh mac matching the one for the vmx
+        ffi.copy(eth_hdr.ether_dhost, mac_address, 6)
+        transmit(output_vmx, pkt)
+      else
+        packet.free(pkt)
+      end
     end
   end
 
@@ -330,7 +336,13 @@ function nh_fwd4:push ()
       ffi.copy(eth_hdr.ether_dhost, next_hop_mac, 6)
       transmit(output_wire, pkt)
     else
-      packet.free(pkt)
+      if self.cache_refresh_interval == 0 and output_vmx then
+        -- set nh mac matching the one for the vmx
+        ffi.copy(eth_hdr.ether_dhost, mac_address, 6)
+        transmit(output_vmx, pkt)
+      else
+        packet.free(pkt)
+      end
     end
   end
 

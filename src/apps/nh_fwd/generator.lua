@@ -182,7 +182,14 @@ function generator:new(arg)
 
   local ipv6_ipv4_udp_hdr, ipv6_ipv4_icmp_hdr
 
-  local ipv4_packet_sizes = { 64, 64, 64, 64, 64, 64, 64, 594, 594, 594, 1500 }
+  local ipv4_packet_sizes
+  if payload_size > 0 then
+    local size = payload_size + 20
+    print(string.format("Using IP packet size of %d", size))
+    ipv4_packet_sizes = { size }
+  else
+    ipv4_packet_sizes = { 64, 64, 64, 64, 64, 64, 64, 594, 594, 594, 1500 }
+  end
   local total_length = 0
   local total_packet_count = 0
   for _,size in ipairs(ipv4_packet_sizes) do

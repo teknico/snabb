@@ -93,6 +93,7 @@ function run(args)
 
    local conf = {}
    local lwconf = {}
+   local ring_buffer_size = 2048
    if file_exists(conf_file) then
      conf = lib.load_conf(conf_file)
      if not file_exists(conf.lwaftr) then
@@ -102,12 +103,12 @@ function run(args)
      lwconf.ipv6_mtu = lwconf.ipv6_mtu or 1500
      lwconf.ipv4_mtu = lwconf.ipv4_mtu or 1460
    else
+     ring_buffer_size = 1024
      print(string.format("interface %s set to passhtru mode", id))
    end
 
    local c = config.new()
 
-   local ring_buffer_size = 2048
 
    if conf.settings then
      if conf.settings.ring_buffer_size then

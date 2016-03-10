@@ -54,7 +54,12 @@ local default = {
 
    snmp = {
       status_timer = 5, -- Interval for IF status check and MIB update
+   },
+   qprdc = {
+     discard_check_timer = 1, -- Interval to check QPRDC/ingress packet drops
+     discard_threshold = 100000
    }
+
 }
 
 local function pass (...) return ... end
@@ -82,6 +87,7 @@ function new_sf (conf)
                  rdt = 0,          -- Cache of receive tail (RDT) register
                  rxnext = 0,       -- Index of next buffer to receive
                  snmp = conf.snmp,
+                 qprdc = conf.qprdc,
               }
    return setmetatable(dev, M_sf)
 end
@@ -122,6 +128,9 @@ end
 function M_sf:init ()
    if self.snmp then
       self:init_snmp()
+   end
+   if self.qprdc then
+     self:init_qprdc()
    end
    self:init_dma_memory()
 
@@ -186,6 +195,31 @@ do
       _tx_pool[#_tx_pool+1] = {ptr = self.txdesc, phy = self.txdesc_phy}
       return self
    end
+end
+
+function M_sf:init_qprdc ()
+   -- Track ifInDiscards counter from register QPRDC
+ 
+   local discards = 0
+   self.qprdc.discards = discards
+   local discard_threshold = self.qprdc.discard_threshold or default.qprdc.discard_threshold
+   local discard_check_timer = self.qprdc.discard_check_timer or default.qprdc.discard_check_timer
+
+   self.logger = lib.logger_new({ module = 'intel10g' })
+   self.logger:log(string.format("%s: run jit.flush() on ingress packet loss greater than  %d packets per %d sec",self.pciaddress, discard_threshold, discard_check_timer))
+   local t = timer.new("Interface "..self.pciaddress.." ifInDiscards checker",
+                       function(t)
+                          local discards = tonumber(self.qs.QPRDC[0]())
+                          counter.set(ifInDiscards, discards)
+                          if discards > self.qprdc.discards + discard_threshold then
+                            self.logger:log(string.format("Interface %s ingress packet drops %d, running jit.flush()",self.pciaddress, discards))
+                            jit.flush()
+                          end
+                          self.qprdc.discards = discards
+                       end,
+                       1e9 * discard_check_timer, 'repeating')
+   timer.activate(t)
+   return self
 end
 
 function M_sf:init_snmp ()
@@ -654,6 +688,7 @@ function new_pf (conf)
                  vlan_set = index_set:new(64, "VLAN Filter table"),
                  mirror_set = index_set:new(4, "Mirror pool table"),
                  snmp = conf.snmp,
+                 qprdc = conf.qprdc
               }
    return setmetatable(dev, M_pf)
 end
@@ -682,6 +717,9 @@ function M_pf:init ()
    if self.snmp then
       self:init_snmp()
    end
+   if self.qprdc then
+     self:init_qprdc()
+   end
    self.redos = 0
    local mask = bits{Link_up=30}
    for i = 1, 120 do
@@ -708,6 +746,7 @@ function M_pf:init ()
 end
 
 M_pf.init_snmp = M_sf.init_snmp
+M_pf.init_qprdc = M_sf.init_qprdc
 M_pf.global_reset = M_sf.global_reset
 M_pf.disable_interrupts = M_sf.disable_interrupts
 M_pf.set_receive_descriptors = pass

@@ -37,6 +37,11 @@ Fragmenter = {}
 NDP = {}
 ICMPEcho = {}
 
+local reassemble_ok      = counter.open("lwaftr_v6/reassemble_ok")
+local reassemble_invalid = counter.open("lwaftr_v6/reassemble_invalid")
+local fragment_ok        = counter.open("lwaftr_v6/fragment_ok")
+local fragment_forbidden = counter.open("lwaftr_v6/fragment_forbidden")
+
 function Reassembler:new(conf)
    local o = setmetatable({}, {__index=Reassembler})
    o.conf = conf
@@ -164,6 +169,7 @@ function Fragmenter:push ()
             transmit(output, pkts[i])
          end
       else
+         counter.add(fragment_forbidden)
          transmit(output, pkt)
       end
    end

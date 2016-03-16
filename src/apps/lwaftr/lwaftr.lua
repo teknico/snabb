@@ -601,57 +601,11 @@ local function flush_decapsulation(lwstate)
          packet.shiftleft(pkt, ipv6_fixed_header_size)
          write_eth_header(pkt.data, lwstate.aftr_mac_inet_side, lwstate.inet_mac,
                           n_ethertype_ipv4)
+         counter.add(v4sentPacket)
+         counter.add(v4sentByte, pkt.length)
          transmit_ipv4(lwstate, pkt)
       else
          drop_ipv6_packet_from_bad_softwire(lwstate, pkt)
-      end
-   end
-   bt:reset_lookup_queue()
-end
-
-local function enqueue_decapsulation(lwstate, pkt, ipv4, port)
-   enqueue_lookup(lwstate, pkt, ipv4, port, flush_decapsulation)
-end
-
-local function decapsulate_and_transmit(lwstate, pkt)
-   -- Remove IPv6 header and rewrite the ethernet header.
-   packet.shiftleft(pkt, ipv6_fixed_header_size)
-   local ipv4_header = get_ethernet_payload(pkt)
-   local ipv4_dst_ip = get_ipv4_dst_address(ipv4_header)
-   write_eth_header(pkt.data, lwstate.aftr_mac_inet_side, lwstate.inet_mac,
-                    n_ethertype_ipv4)
-   counter.add(v4sentPacket)
-   counter.add(v4sentByte, pkt.length)
-   if lwstate.hairpinning and ipv4_in_binding_table(lwstate, ipv4_dst_ip) then
-      -- The destination address is also behind the lwAFTR.  Add the
-      -- packet to the encapsulation queue, as if it came in from the
-      -- internet.
-      return transmit(lwstate.input.v4, pkt)
-   else
-      return transmit(lwstate.o4, pkt)
-   end
-end
-
-local function flush_decapsulation(lwstate)
-   local bt = lwstate.binding_table
-   bt:process_lookup_queue()
-   for n = 0, bt.lookup_queue_len - 1 do
-      local pkt, b4_addr, br_addr = bt:get_enqueued_lookup(n)
-
-      local ipv6_header = get_ethernet_payload(pkt)
-      if (b4_addr
-          and ipv6_equals(get_ipv6_src_address(ipv6_header), b4_addr)
-          and ipv6_equals(get_ipv6_dst_address(ipv6_header), br_addr)) then
-         decapsulate_and_transmit(lwstate, pkt)
-      elseif lwstate.policy_icmpv6_outgoing == lwconf.policies['ALLOW'] then
-         icmp_b4_lookup_failed(lwstate, pkt)
-         counter.add(v6droppedPacket)
-         counter.add(v6droppedByte, pkt.length)
-         drop(pkt)
-      else
-         counter.add(v6droppedPacket)
-         counter.add(v6droppedByte, pkt.length)
-         drop(pkt)
       end
    end
    bt:reset_lookup_queue()

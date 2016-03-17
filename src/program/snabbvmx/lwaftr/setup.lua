@@ -56,6 +56,12 @@ function lwaftr_app(c, conf, lwconf, sock_path, vmxtap)
   local chain_output = phy_id .. ".tx"
   local v4_input, v4_output, v6_input, v6_output
 
+  if lwconf.hairpinning == true then
+    print("hairpinning enabled")
+  else
+    print("hairpinning disabled")
+  end
+
   if conf.ipv4_interface or conf.ipv6_interface then
 
     local mirror = false

@@ -109,6 +109,8 @@ function run(args)
 
    local c = config.new()
 
+   local discard_threshold = 100000
+   local discard_check_timer = 1
 
    if conf.settings then
      if conf.settings.ring_buffer_size then
@@ -121,12 +123,20 @@ function run(args)
          fatal("ring size is not a power of two: " .. ring_buffer_size)
        end
      end
+     if conf.settings.discard_threshold then
+       discard_threshold = conf.settings.discard_threshold
+     end
+     if conf.settings.discard_check_timer then
+       discard_check_timer = conf.settings.discard_check_timer
+     end
    end
 
    print(string.format("ring_buffer_size set to %d", ring_buffer_size))
    require('apps.intel.intel10g').num_descriptors = ring_buffer_size
 
-   conf.interface = { mac_address = mac, pci = pci, id = id }
+   conf.interface = { mac_address = mac, pci = pci, id = id,
+      discard_threshold = discard_threshold, 
+      discard_check_timer = discard_check_timer }
    if dir_exists(("/sys/devices/virtual/net/%s"):format(id)) then
      conf.interface.mirror_id = id
    end

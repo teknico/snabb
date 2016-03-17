@@ -30,7 +30,9 @@ local function load_phy(c, nic_id, interface)
   end
   config.app(c, nic_id, require(device_info.driver).driver, 
   {pciaddr = interface.pci, vmdq = true, vlan = vlan, 
-    qprdc = { discard_check_timer = 1, discard_threshold = 100000 },
+    qprdc = { 
+      discard_check_timer = interface.discard_check_timer, 
+      discard_threshold = interface.discard_threshold },
   macaddr = interface.mac_address, mtu = interface.mtu})
 
 end

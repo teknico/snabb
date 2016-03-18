@@ -134,7 +134,12 @@ function run(args)
    print(string.format("ring_buffer_size set to %d", ring_buffer_size))
    require('apps.intel.intel10g').num_descriptors = ring_buffer_size
 
-   conf.interface = { mac_address = mac, pci = pci, id = id,
+   local mtu = lwconf.ipv6_mtu
+   if mtu < lwconf.ipv4_mtu then
+     mtu = lwconf.ipv4_mtu
+   end
+   
+   conf.interface = { mac_address = mac, pci = pci, id = id, mtu = mtu,
       discard_threshold = discard_threshold, 
       discard_check_timer = discard_check_timer }
    if dir_exists(("/sys/devices/virtual/net/%s"):format(id)) then

@@ -18,6 +18,7 @@ local macaddress = require("lib.macaddress")
 local mib = require("lib.ipc.shmem.mib")
 local timer = require("core.timer")
 local counter = require("core.counter")
+local app = require("core.app")
 
 local bits, bitset = lib.bits, lib.bitset
 local band, bor, lshift = bit.band, bit.bor, bit.lshift
@@ -57,7 +58,8 @@ local default = {
    },
    qprdc = {
      discard_check_timer = 1, -- Interval to check QPRDC/ingress packet drops
-     discard_threshold = 100000
+     discard_threshold = 100000,
+     discard_wait = 20,       -- Don't trigger again for x seconds
    }
 
 }
@@ -201,9 +203,12 @@ function M_sf:init_qprdc ()
    -- Track ifInDiscards counter from register QPRDC
  
    local discards = 0
+   local last_trigger = 0
    self.qprdc.discards = discards
+   self.qprdc.last_trigger = last_trigger
    local discard_threshold = self.qprdc.discard_threshold or default.qprdc.discard_threshold
    local discard_check_timer = self.qprdc.discard_check_timer or default.qprdc.discard_check_timer
+   local discard_wait = self.qprdc.discard_wait or default.qprdc.discard_wait
 
    self.logger = lib.logger_new({ module = 'intel10g' })
    self.logger:log(string.format("%s: run jit.flush() on ingress packet loss greater than  %d packets per %d sec",self.pciaddress, discard_threshold, discard_check_timer))
@@ -212,8 +217,14 @@ function M_sf:init_qprdc ()
                           local discards = tonumber(self.qs.QPRDC[0]())
                           counter.set(ifInDiscards, discards)
                           if discards > self.qprdc.discards + discard_threshold then
-                            self.logger:log(string.format("Interface %s ingress packet drops %d, running jit.flush()",self.pciaddress, discards))
-                            jit.flush()
+                            local now = tonumber(app.now())
+                            if self.qprdc.last_trigger < now then
+                              self.logger:log(string.format("Interface %s ingress packet drops %d, running jit.flush()",self.pciaddress, discards))
+                              jit.flush()
+                              self.qprdc.last_trigger = now + discard_wait
+                            else
+                              self.logger:log(string.format("Interface %s ingress packet drops %d",self.pciaddress, discards))
+                            end
                           end
                           self.qprdc.discards = discards
                        end,

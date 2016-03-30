@@ -32,6 +32,7 @@ local function load_phy(c, nic_id, interface)
   {pciaddr = interface.pci, vmdq = true, vlan = vlan, 
     qprdc = { 
       discard_check_timer = interface.discard_check_timer, 
+      discard_wait = interface.discard_wait,
       discard_threshold = interface.discard_threshold },
   macaddr = interface.mac_address, mtu = interface.mtu})
 
@@ -100,6 +101,18 @@ function lwaftr_app(c, conf, lwconf, sock_path, vmxtap)
     else
       print("IPv6 fragmentation and reassembly disabled")
     end
+    if conf.ipv6_interface.ipv6_ingress_filter then
+      print(string.format("IPv6 ingress filter: %s", conf.ipv6_interface.ipv6_ingress_filter))
+      config.app(c, "ingress_filterv6", PcapFilter, { filter = conf.ipv6_interface.ipv6_ingress_filter })
+      config.link(c, v6_output .. " -> ingress_filterv6.input")
+      v6_output = "ingress_filterv6.output"
+    end
+    if conf.ipv6_interface.ipv6_egress_filter then
+      print(string.format("IPv6 egress filter: %s", conf.ipv6_interface.ipv6_egress_filter))
+      config.app(c, "egress_filterv6", PcapFilter, { filter = conf.ipv6_interface.ipv6_egress_filter })
+      config.link(c, "egress_filterv6.output -> " .. v6_input)
+      v6_input = "egress_filterv6.input"
+    end
   end
 
   if conf.ipv4_interface then
@@ -115,6 +128,18 @@ function lwaftr_app(c, conf, lwconf, sock_path, vmxtap)
       v4_input  = "fragmenterv4.input"
     else
       print("IPv4 fragmentation and reassembly disabled")
+    end
+    if conf.ipv4_interface.ipv4_ingress_filter then
+      print(string.format("IPv4 ingress filter: %s", conf.ipv4_interface.ipv4_ingress_filter))
+      config.app(c, "ingress_filterv4", PcapFilter, { filter = conf.ipv4_interface.ipv4_ingress_filter })
+      config.link(c, v4_output .. " -> ingress_filterv4.input")
+      v4_output = "ingress_filterv4.output"
+    end
+    if conf.ipv4_interface.ipv4_egress_filter then
+      print(string.format("IPv4 egress filter: %s", conf.ipv4_interface.ipv4_egress_filter))
+      config.app(c, "egress_filterv4", PcapFilter, { filter = conf.ipv4_interface.ipv4_egress_filter })
+      config.link(c, "egress_filterv4.output -> " .. v4_input)
+      v4_input = "egress_filterv4.input"
     end
   end
 

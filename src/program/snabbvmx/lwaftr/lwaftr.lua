@@ -96,6 +96,7 @@ function run(args)
    local ring_buffer_size = 2048
    local discard_threshold = 100000
    local discard_check_timer = 1
+   local discard_wait = 20
 
    lwconf.ipv6_mtu = 9500
    lwconf.ipv4_mtu = 9500
@@ -132,6 +133,9 @@ function run(args)
      if conf.settings.discard_check_timer then
        discard_check_timer = conf.settings.discard_check_timer
      end
+     if conf.settings.discard_wait then
+       discard_wait = conf.settings.discard_wait
+     end
    end
 
    print(string.format("ring_buffer_size set to %d", ring_buffer_size))
@@ -143,7 +147,7 @@ function run(args)
    end
 
    conf.interface = { mac_address = mac, pci = pci, id = id, mtu = mtu,
-      discard_threshold = discard_threshold, 
+      discard_threshold = discard_threshold, discard_wait = discard_wait,
       discard_check_timer = discard_check_timer }
    if dir_exists(("/sys/devices/virtual/net/%s"):format(id)) then
      conf.interface.mirror_id = id

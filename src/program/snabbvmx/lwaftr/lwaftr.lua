@@ -94,6 +94,12 @@ function run(args)
    local conf = {}
    local lwconf = {}
    local ring_buffer_size = 2048
+   local discard_threshold = 100000
+   local discard_check_timer = 1
+
+   lwconf.ipv6_mtu = 9500
+   lwconf.ipv4_mtu = 9500
+
    if file_exists(conf_file) then
      conf = lib.load_conf(conf_file)
      if not file_exists(conf.lwaftr) then
@@ -108,9 +114,6 @@ function run(args)
    end
 
    local c = config.new()
-
-   local discard_threshold = 100000
-   local discard_check_timer = 1
 
    if conf.settings then
      if conf.settings.ring_buffer_size then
@@ -138,7 +141,7 @@ function run(args)
    if mtu < lwconf.ipv4_mtu then
      mtu = lwconf.ipv4_mtu
    end
-   
+
    conf.interface = { mac_address = mac, pci = pci, id = id, mtu = mtu,
       discard_threshold = discard_threshold, 
       discard_check_timer = discard_check_timer }

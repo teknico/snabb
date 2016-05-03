@@ -7,6 +7,7 @@ local config  = require("core.config")
 local timer   = require("core.timer")
 local counter = require("core.counter")
 local zone    = require("jit.zone")
+local jit     = require("jit")
 local ffi     = require("ffi")
 local C       = ffi.C
 require("core.packet_h")
@@ -46,8 +47,8 @@ end
 
 function ingress_drop_monitor:jit_flush_if_needed()
    if self.current_value[0] - self.last_value[0] < self.threshold then return end
-   if app.now() - self.last_flush < self.wait then return end
-   self.last_flush = app.now()
+   if now() - self.last_flush < self.wait then return end
+   self.last_flush = now()
    self.last_value[0] = self.current_value[0]
    jit.flush()
    print("jit.flush")

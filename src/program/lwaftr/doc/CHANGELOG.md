@@ -40,6 +40,15 @@ A bug fix, performance tuning, and documentation release.
  * The load tester now works on line bitrates, including the ethernet
    protocol overhead (interframe spacing, prologues, and so on).
 
+ * Add --cpu argument to "snabb lwaftr run", to set CPU affinity.  You
+   can use --cpu instead of using "taskset", if you like.
+
+ * Add --real-time argument to "snabb lwaftr run", to enable real-time
+   scheduling.  This might be useful when troubleshooting, though in
+   practice we have found that it does not have a significant effect on
+   scheduling jitter, as the CPU affinity largely prevents the kernel
+   from upsetting a Snabb process.
+
 ## [2.3] - 2016-02-17
 
 A bug fix and performance improvement release.

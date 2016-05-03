@@ -1,5 +1,19 @@
 # Change Log
 
+## [2.4] - 2016-05-03
+
+A bug fix, performance tuning, and documentation release.
+
+ * NDP: retry queries
+
+ * NDP: use MAC address from Ethernet header if reply does not contain it
+
+ * Automatically flush JIT if there are too many ingress packet drops
+
+ * Better PCI address matching (by Pete Bristow)
+
+ * Included performance-tuning.md (by Marcel Wiget)
+
 ## [2.3] - 2016-02-17
 
 A bug fix and performance improvement release.

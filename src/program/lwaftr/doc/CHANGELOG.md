@@ -4,15 +4,41 @@
 
 A bug fix, performance tuning, and documentation release.
 
- * NDP: retry queries
+ * Fix limitations and bugs in the NDP implementation.  Before, if no
+   reply to the initial neighbor solicitation was received, neighbor
+   discovery would fail.  Now, we retry solicitation for some number of
+   seconds before giving up.  Relatedly, the NDP implementation now takes
+   the MAC address from Ethernet header if reply does not contain it in
+   the payload.
 
- * NDP: use MAC address from Ethernet header if reply does not contain it
+ * Automatically flush JIT if there are too many ingress packet drops.
+   When the snabb breathe cycle runs, it usually doesn't drop any
+   packets: packets pulled into the network are fully pushed through,
+   with no residual data left in link buffers. However if the breathe()
+   function takes too long, it's possible for it to miss incoming
+   packets deposited in ingress ring buffers. That is usually the source
+   of packet loss in a Snabb program.
 
- * Automatically flush JIT if there are too many ingress packet drops
+   There are several things that can cause packet loss: the workload
+   taking too long on average, and needing general optimization; the
+   workload taking too long, but only during some fraction of breaths,
+   for example due to GC or other sources of jitter; or, the workload
+   was JIT-compiled with one incoming traffic pattern, but conditions
+   have changed meaning that the JIT should re-learn the new
+   patterns. The ingress drop monitor exists to counter this last
+   reason. If the ingress drop monitor detects that the program is
+   experiencing ingress drop, it will call jit.flush(), to force LuaJIT
+   to re-learn the paths that are taken at run-time. It will avoid
+   calling jit.flush() too often, in the face of sustained packet loss,
+   by default flushing the JIT only once every 20 seconds.
 
- * Better PCI address matching (by Pete Bristow)
+ * Bug-fix backports from upstream Snabb: fix bugs when trying to use
+   PCI devices whose names contain hexadecimal characters (from Pete
+   Bristow), and include some documentation on performance tuning (by
+   Marcel Wiget).
 
- * Included performance-tuning.md (by Marcel Wiget)
+ * The load tester now works on line bitrates, including the ethernet
+   protocol overhead (interframe spacing, prologues, and so on).
 
 ## [2.3] - 2016-02-17
 

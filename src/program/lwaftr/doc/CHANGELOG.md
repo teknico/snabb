@@ -1,5 +1,24 @@
 # Change Log
 
+## [2.5] - 2016-05-13
+
+A bug fix release.
+
+ * Fix bug in the NDP implementation.  Before, the lwAFTR would respond
+   to neighbor solicitations to any of the IPv6 addresses associated
+   with tunnel endpoints, but not to the IPv6 address of the interface.
+   This was exactly backwards and has been fixed.
+
+ * Fix ability to dump the running binding table to a text file.  This
+   had been fixed on the main development branch before v2.4 but we
+   missed it when selecting the features to back-port to the 2.x release
+   branch.
+
+ * Add ability to read in ingress and egress filters from files.  If the
+   filter value starts with a "<", it is interpreted as a file that
+   should be read.  For example, `ipv6_egress_filter =
+   <ipv6-egress-filter.txt"`.  See README.configuration.md.
+
 ## [2.4] - 2016-05-03
 
 A bug fix, performance tuning, and documentation release.

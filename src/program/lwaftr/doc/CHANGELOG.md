@@ -1,5 +1,18 @@
 # Change Log
 
+## [2.6] - 2016-05-18
+
+A bug fix release.
+
+ * Fix ability to dump the running binding table to a text file.  Our
+   previous fix in 2.5 assumed that we could find the original binding
+   table on disk, but that is not always the case, for example if the
+   binding table was changed or moved.
+
+   On the bright side, the binding table dumping facility will now work
+   even if the binding table is changed at run-time, which will be
+   necessary once we start supporting incremental binding-table updates.
+
 ## [2.5] - 2016-05-13
 
 A bug fix release.

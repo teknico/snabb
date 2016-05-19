@@ -868,8 +868,8 @@ function M_vf:reconfig(opts)
       :set_MAC(opts.macaddr)
       :set_mirror(opts.mirror)
       :set_VLAN(opts.vlan)
-      :set_rx_stats(opts.rxcounter)
-      :set_tx_stats(opts.txcounter)
+      :set_rx_stats(opts.rxcounter or 0)
+      :set_tx_stats(opts.txcounter or 0)
       :set_tx_rate(opts.rate_limit, opts.priority)
       :enable_receive()
       :enable_transmit()
@@ -883,8 +883,8 @@ function M_vf:init (opts)
       :set_MAC(opts.macaddr)
       :set_mirror(opts.mirror)
       :set_VLAN(opts.vlan)
-      :set_rx_stats(opts.rxcounter)
-      :set_tx_stats(opts.txcounter)
+      :set_rx_stats(opts.rxcounter or 0)
+      :set_tx_stats(opts.txcounter or 0)
       :set_tx_rate(opts.rate_limit, opts.priority)
       :enable_receive()
       :enable_transmit()
@@ -1138,7 +1138,6 @@ function M_vf:set_tx_stats (counter)
 end
 
 function M_vf:get_rxstats ()
-   if not self.rxstats then return nil end
    return {
       counter_id = self.rxstats,
       packets = tonumber(self.pf.qs.QPRC[self.rxstats]()),
@@ -1149,7 +1148,6 @@ function M_vf:get_rxstats ()
 end
 
 function M_vf:get_txstats ()
-   if not self.txstats then return nil end
    return {
       counter_id = self.txstats,
       packets = tonumber(self.pf.qs.QPTC[self.txstats]()),
@@ -1175,7 +1173,7 @@ function M_vf:set_tx_rate (limit, priority)
 end
 
 function M_vf:ingress_packet_drops ()
-   return self.pf:ingress_packet_drops()
+   return self.pf.qs.QPRDC[self.rxstats]()
 end
 
 rxdesc_t = ffi.typeof [[

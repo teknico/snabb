@@ -33,9 +33,9 @@
 qemu_start_vm() {
     echo "Starting QEMU. Please wait..."
     cd $VM_DIR
-    sudo qemu-system-x86_64 \
+    sudo numactl -m ${NUMA_NODE} taskset -c ${QEMU_CORE} qemu-system-x86_64 \
         --enable-kvm -name ${NAME} -drive file=${DISK},if=virtio \
-        -m ${MEM} -cpu host -smp 2 \
+        -m ${MEM} -cpu host \
         -fsdev local,security_model=passthrough,id=fsdev0,path=${SHARED_LOCATION} \
             -device virtio-9p-pci,id=fs0,fsdev=fsdev0,mount_tag=share \
         -object memory-backend-file,id=mem,size=${MEM},mem-path=/dev/hugepages,share=on \
@@ -57,11 +57,6 @@ vm_pid() {
 
 start_vm() {
     qemu_start_vm
-    sleep 30
-
-    pid=$(vm_pid "${NAME}")
-    for each in `ls /proc/$pid/task`; do sudo taskset -cp $QEMU_CORE $each; done
-    echo "Pinned QEMU to core $QEMU_CORE"
 }
 
 stop_vm() {
@@ -108,7 +103,7 @@ start_snabbnfv_process() {
     local sock=$5
 
     echo "Start snabbnfv (screen: '$screen') at core $core (pci: $pci; conf: $conf}; socket: $sock)"
-    screen -dmS $screen bash -c "cd ${SNABB_HOST_PATH}/src; sudo taskset -c ${core} sudo ./snabb snabbnfv traffic ${pci} ${conf} ${sock}"
+    screen -dmS $screen bash -c "cd ${SNABB_HOST_PATH}/src; sudo numactl -m ${NUMA_NODE} taskset -c ${core} sudo ./snabb snabbnfv traffic -b ${pci} ${conf} ${sock}"
 }
 
 restart_snabbnfv() {
@@ -222,7 +217,7 @@ help() {
     usage 0
 }
 
-AFTRCTL_CONF=confs/lwaftrctl1.conf
+AFTRCTL_CONF=lwaftrctl.conf
 ARGS=()
 while [[ $# > 0 ]]; do
     key="$1"

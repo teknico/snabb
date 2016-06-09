@@ -36,7 +36,8 @@ end
 -- Create a new empty packet.
 function new_packet ()
    local p = ffi.cast(packet_ptr_t, memory.dma_alloc(packet_size))
-   p.data = p.data_
+   p.headroom = C.PACKET_HEADROOM_SIZE
+   p.data = p.data_ + p.headroom
    p.length = 0
    return p
 end
@@ -68,20 +69,23 @@ end
 -- Move packet data to the left. This shortens the packet by dropping
 -- the header bytes at the front.
 function shiftleft (p, bytes)
-   -- C.memmove(p.data, p.data+bytes, p.length-bytes)
    p.data = p.data + bytes
+   p.headroom = p.headroom + bytes
    p.length = p.length - bytes
 end
 
 -- Move packet data to the right. This leaves length bytes of data
 -- at the beginning of the packet.
 function shiftright (p, bytes)
-   if p.data - bytes >= p.data_ - C.PACKET_HEADROOM_SIZE then
-      p.data = p.data - bytes
+   if bytes <= p.headroom then
+      -- Take from the headroom.
+      p.headroom = p.headroom - bytes
    else
-      C.memmove(p.data_ + bytes, p.data, p.length)
-      p.data = p.data_
+      -- No headroom for the shift; re-set the headroom to the default.
+      p.headroom = C.PACKET_HEADROOM_SIZE
+      C.memmove(p.data_ + p.headroom + bytes, p.data, p.length)
    end
+   p.data = p.data_ + p.headroom
    p.length = p.length + bytes
 end
 
@@ -92,7 +96,8 @@ function from_string (d)         return from_pointer(d, #d) end
 -- Free a packet that is no longer in use.
 local function free_internal (p)
    p.length = 0
-   p.data = p.data_
+   p.headroom = C.PACKET_HEADROOM_SIZE
+   p.data = p.data_ + p.headroom
    freelist_add(packets_fl, p)
 end
 

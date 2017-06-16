@@ -146,9 +146,7 @@ function run(args)
    local c = config.new()
    local setup_fn, setup_args
    if opts.virtio_net then
-      -- setup.load_virt returns nothing!?!
-      -- setup_fn, setup_args = setup.load_virt, { 'inetNic', v4, 'b4sideNic', v6 }
-      setup.load_virt, { 'inetNic', v4, 'b4sideNic', v6 }
+      setup_fn, setup_args = setup.load_virt, { 'inetNic', v4, 'b4sideNic', v6 }
    elseif opts["on-a-stick"] then
       setup_fn = setup.load_on_a_stick
       setup_args =
@@ -157,9 +155,10 @@ function run(args)
              ndescriptors = opts.ring_buffer_size,
              mirror = opts.mirror } }
    else
-      -- setup.load_phy returns nothing!?!
-      -- setup_fn, setup_args = setup.load_phy, { 'inetNic', v4, 'b4sideNic', v6 }
-      setup.load_phy, { 'inetNic', v4, 'b4sideNic', v6 }
+      setup_fn = setup.load_phy
+      setup_args =
+         { { v4_nic_name = 'inetNic', v6_nic_name = 'b4sideNic',
+             ndescriptors = opts.ring_buffer_size } }
    end
 
    if opts.reconfigurable then
@@ -237,4 +236,3 @@ function run(args)
       engine.main({report={showlinks=true}})
    end
 end
-ring_buffer_size
